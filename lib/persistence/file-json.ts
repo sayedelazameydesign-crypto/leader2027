@@ -6,13 +6,21 @@ import { seededStoreFrom } from "./seed";
 
 /**
  * محوّل persistence بملف JSON — يعمل على خادم إنتاج طويل (next start).
- * تنويه مُثبَّت في الخطة: القرص ephemeral على Vercel serverless —
+ * تنويه مُثبَّت: القرص ephemeral على Vercel serverless —
  * محولّ PostgreSQL يُضاف لاحقاً فوق نفس الواجهة (Repository Interface) بلا إعادة كتابة domain.
  */
 export function createFileJsonRepos(path: string, seedIfEmpty = true): Repos {
   let store: Store;
   if (existsSync(path)) {
     store = { ...emptyStore(), ...JSON.parse(readFileSync(path, "utf-8")) };
+    // توافق قدماء: ملفات قديمة بلا session_epoch
+    store.users = store.users.map((u) => ({ ...u, session_epoch: u.session_epoch ?? 0 }));
+    // توافق قدماء: ملفات أُنشئت قبل VS3 — حملة singleton + دورات فارغة (نفس قيم seed)
+    if (!store.campaign) {
+      const t = new Date().toISOString();
+      store.campaign = { id: "campaign-1", name: "حملة Leader 2027", created_at: t, updated_at: t };
+    }
+    if (!store.cycles) store.cycles = [];
   } else {
     store = seedIfEmpty ? seededStoreFrom() : emptyStore();
   }
@@ -76,9 +84,49 @@ function withWriteThrough(repos: Repos, flush: () => void): Repos {
         flush();
         return created;
       },
+      update(id, patch) {
+        const updated = repos.users.update(id, patch);
+        flush();
+        return updated;
+      },
     },
-    regions: repos.regions,
-    teams: repos.teams,
+    regions: {
+      ...repos.regions,
+      create(region) {
+        const created = repos.regions.create(region);
+        flush();
+        return created;
+      },
+    },
+    teams: {
+      ...repos.teams,
+      create(team) {
+        const created = repos.teams.create(team);
+        flush();
+        return created;
+      },
+    },
+    campaign: {
+      ...repos.campaign,
+      update(patch) {
+        const updated = repos.campaign.update(patch);
+        flush();
+        return updated;
+      },
+    },
+    cycles: {
+      ...repos.cycles,
+      create(cycle) {
+        const created = repos.cycles.create(cycle);
+        flush();
+        return created;
+      },
+      update(id, patch) {
+        const updated = repos.cycles.update(id, patch);
+        flush();
+        return updated;
+      },
+    },
     audit: {
       ...repos.audit,
       append(event) {

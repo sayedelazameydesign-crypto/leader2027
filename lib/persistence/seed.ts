@@ -1,9 +1,9 @@
-import type { Repos, Region, Team, User, AuditEvent } from "@/lib/repositories/interfaces";
+import type { Repos, Region, Team, User, Campaign, ElectionCycle, AuditEvent } from "@/lib/repositories/interfaces";
 import { hashPassword } from "@/lib/auth/password";
 import type { Person } from "@/lib/domain/people/person";
 import type { Volunteer } from "@/lib/domain/volunteers/volunteer";
 import type { FieldReport } from "@/lib/domain/field/field-report";
-import { emptyStore, reposFromStore, type Store } from "@/lib/persistence/memory";
+import { emptyStore, type Store } from "@/lib/persistence/memory";
 
 /**
  * بيانات تشغيلية تجريبية (seed-only) — مستخدم لكل دور بحسب مصفوفة الصلاحيات.
@@ -15,6 +15,15 @@ export const SEED_PASSWORD = "Demo!2345";
 const now = new Date().toISOString();
 
 export const SEED = {
+  campaign: { id: "campaign-1", name: "حملة Leader 2027" },
+  cycles: [
+    {
+      id: "cycle-1",
+      name: "الدورة الانتخابية 2027",
+      election_date: "2027-01-15",
+      status: "planned" as const,
+    },
+  ],
   regions: [
     { id: "region-giza", name: "الجيزة" },
     { id: "region-haram", name: "الهرم" },
@@ -70,6 +79,16 @@ export const SEED = {
 export function seededStore(): Store {
   const store = emptyStore();
 
+  store.campaign = {
+    ...SEED.campaign,
+    created_at: now,
+    updated_at: now,
+  } satisfies Campaign;
+
+  store.cycles = SEED.cycles.map(
+    (c): ElectionCycle => ({ ...c, created_at: now, updated_at: now }),
+  );
+
   store.regions = SEED.regions.map((r): Region => ({ ...r }));
   store.teams = SEED.teams.map((t): Team => ({ ...t }));
   store.users = SEED.users.map(
@@ -77,6 +96,7 @@ export function seededStore(): Store {
       ...u,
       role: u.role as User["role"],
       password_hash: hashPassword(SEED_PASSWORD),
+      session_epoch: 0,
       created_at: now,
     }),
   );

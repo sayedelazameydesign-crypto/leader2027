@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import type {
   AuditEvent,
   AuditRepo,
+  Campaign,
+  CampaignRepo,
+  CyclesRepo,
+  ElectionCycle,
   FieldReportsRepo,
   ListFilter,
   PeopleRepo,
@@ -25,6 +29,8 @@ export type Store = {
   users: User[];
   regions: Region[];
   teams: Team[];
+  campaign: Campaign | null;
+  cycles: ElectionCycle[];
   audit: AuditEvent[];
 };
 
@@ -36,6 +42,8 @@ export function emptyStore(): Store {
     users: [],
     regions: [],
     teams: [],
+    campaign: null,
+    cycles: [],
     audit: [],
   };
 }
@@ -141,6 +149,15 @@ export function reposFromStore(store: Store): Repos {
       store.users.push(created);
       return created;
     },
+    update(id, patch) {
+      const idx = store.users.findIndex((u) => u.id === id);
+      if (idx === -1) return null;
+      store.users[idx] = { ...store.users[idx], ...patch, id };
+      return store.users[idx];
+    },
+    list() {
+      return [...store.users];
+    },
   };
 
   const regions: RegionsRepo = {
@@ -150,6 +167,11 @@ export function reposFromStore(store: Store): Repos {
     list() {
       return [...store.regions];
     },
+    create(region) {
+      const created: Region = { ...region, id: randomUUID() };
+      store.regions.push(created);
+      return created;
+    },
   };
 
   const teams: TeamsRepo = {
@@ -158,6 +180,42 @@ export function reposFromStore(store: Store): Repos {
     },
     list() {
       return [...store.teams];
+    },
+    create(team) {
+      const created: Team = { ...team, id: randomUUID() };
+      store.teams.push(created);
+      return created;
+    },
+  };
+
+  const campaign: CampaignRepo = {
+    get() {
+      return store.campaign;
+    },
+    update(patch) {
+      if (!store.campaign) return null;
+      store.campaign = { ...store.campaign, ...patch, updated_at: now() };
+      return store.campaign;
+    },
+  };
+
+  const cycles: CyclesRepo = {
+    getById(id) {
+      return store.cycles.find((c) => c.id === id) ?? null;
+    },
+    list() {
+      return [...store.cycles];
+    },
+    create(cycle) {
+      const created: ElectionCycle = { ...cycle, id: randomUUID() };
+      store.cycles.push(created);
+      return created;
+    },
+    update(id, patch) {
+      const idx = store.cycles.findIndex((c) => c.id === id);
+      if (idx === -1) return null;
+      store.cycles[idx] = { ...store.cycles[idx], ...patch, id, updated_at: now() };
+      return store.cycles[idx];
     },
   };
 
@@ -176,7 +234,7 @@ export function reposFromStore(store: Store): Repos {
     },
   };
 
-  return { people, volunteers, reports, users, regions, teams, audit };
+  return { people, volunteers, reports, users, regions, teams, campaign, cycles, audit };
 }
 
 export function createMemoryRepos(initial?: Store): Repos {

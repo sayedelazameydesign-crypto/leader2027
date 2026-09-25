@@ -75,3 +75,14 @@ describe("policy matrix (Product Contract §4)", () => {
     expect(can(actor("CAMPAIGN_MANAGER"), "volunteers:update")).toBe(true);
   });
 });
+
+describe("settings:manage (VS3 — الإدارة)", () => {
+  it("Owner/Admin/Manager فقط", () => {
+    for (const role of ["OWNER", "CAMPAIGN_ADMIN", "CAMPAIGN_MANAGER"] as Role[]) {
+      expect(can(actor(role), "settings:manage")).toBe(true);
+    }
+    for (const role of ["FIELD_COORDINATOR", "FIELD_WORKER", "VIEWER"] as Role[]) {
+      expect(can(actor(role), "settings:manage")).toBe(false);
+    }
+  });
+});

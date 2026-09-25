@@ -50,4 +50,19 @@ describe("session token (HMAC)", () => {
     // نتحقق على الأقل من رفض أي تعديل للحمولة.
     expect(readSessionToken(expired)).toBeNull();
   });
+
+  it("يحمل session_epoch ويقرأه (VS3 — تقوية الجلسات)", () => {
+    const token = createSessionToken("user-worker", 3);
+    const payload = readSessionToken(token);
+    expect(payload?.ep).toBe(3);
+  });
+
+  it("يرفض أي تعديل في ep (توقيع HMAC يحميه)", () => {
+    const token = createSessionToken("user-worker", 3);
+    const [body, sig] = token.split(".");
+    const decoded = JSON.parse(Buffer.from(body, "base64url").toString());
+    decoded.ep = 99;
+    const tampered = Buffer.from(JSON.stringify(decoded)).toString("base64url");
+    expect(readSessionToken(`${tampered}.${sig}`)).toBeNull();
+  });
 });

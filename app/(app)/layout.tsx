@@ -1,4 +1,5 @@
 import { requirePageUser } from "@/lib/auth/page";
+import { can } from "@/lib/authorization/policy";
 import LogoutButton from "@/components/ui/LogoutButton";
 import Link from "next/link";
 
@@ -24,6 +25,8 @@ export default async function AppLayout({
           <Link href="/people">الأشخاص</Link>
           <Link href="/volunteers">المتطوعون</Link>
           <Link href="/field/reports">التقارير الميدانية</Link>
+          {can(user, "settings:manage") ? <Link href="/admin">الإدارة</Link> : null}
+          {can(user, "users:manage") ? <Link href="/admin/users">المستخدمون</Link> : null}
         </nav>
         <div className="userbox">
           <span className="chip chip-ok">

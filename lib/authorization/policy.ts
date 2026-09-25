@@ -13,6 +13,7 @@ export type Action =
   | "reports:update_notes"
   | "reports:update_status"
   | "users:manage"
+  | "settings:manage"
   | "audit:view";
 
 export type Actor = {
@@ -27,9 +28,9 @@ export type Resource = {
 };
 
 /**
- * مصفوفة الصلاحيات — Product Contract §4.
+ * مصفوفة الصلاحيات — Product Contract §4 (+ VS3: settings:manage للـManager+).
  * «محدود» (تفسير معتمد): قراءة فقط دون create/patch.
- * صف «Assign task» محفوظ لـP3 (بلا كيان Task في VS2).
+ * صف «Assign task» محفوظ لـP3 (بلا كيان Task).
  * لا يُعتمد على إخفاء الأزرار كـauthorization — التنفيذ هنا ومنع على مستوى الخدمة/API.
  */
 const MATRIX: Record<Role, Action[]> = {
@@ -37,19 +38,19 @@ const MATRIX: Record<Role, Action[]> = {
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
-    "users:manage", "audit:view",
+    "users:manage", "settings:manage", "audit:view",
   ],
   CAMPAIGN_ADMIN: [
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
-    "users:manage", "audit:view",
+    "users:manage", "settings:manage", "audit:view",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
-    "users:manage", "audit:view",
+    "users:manage", "settings:manage", "audit:view",
   ],
   FIELD_COORDINATOR: [
     "dashboard:view", "people:view", "people:create", "people:update",

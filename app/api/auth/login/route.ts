@@ -22,11 +22,15 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({ user: publicUser(user) });
-  res.cookies.set(SESSION_COOKIE, createSessionToken(user.id), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 12 * 3600,
-  });
+  res.cookies.set(
+    SESSION_COOKIE,
+    createSessionToken(user.id, user.session_epoch ?? 0),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 12 * 3600,
+    },
+  );
   return res;
 }

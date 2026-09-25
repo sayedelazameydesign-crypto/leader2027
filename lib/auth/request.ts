@@ -15,7 +15,11 @@ export function getSessionUser(repos: Repos, token: string | null): User | null 
   if (!token) return null;
   const payload = readSessionToken(token);
   if (!payload) return null;
-  return repos.users.getById(payload.uid);
+  const user = repos.users.getById(payload.uid);
+  if (!user) return null;
+  // VS3 — تقوية الجلسات: epoch غير مطابق = جلسة مُبطَلة (تغيّر الدور مثلاً)
+  if (payload.ep !== user.session_epoch) return null;
+  return user;
 }
 
 export function isResponse(value: unknown): value is Response {
