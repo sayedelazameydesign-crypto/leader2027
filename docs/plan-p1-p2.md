@@ -70,8 +70,8 @@ resolveSessionSecret(nodeEnv, raw):
 [x] 8  P1: container unit tests (override/memory-cached/file-fresh) خضراء
 [x] 9  typecheck PASS  [x] 10 tests PASS — 130/130  [x] 11 build PASS
 [x] 12 production smoke PASS محلياً مع NODE_ENV=production + سرّ صريح — 34/34 × جولتان
-[ ] 13 CI PASS على الفرع وعلى main
-[ ] 14 remote SHA verified (CHANGE→COMMIT→PUSH→VERIFY_REMOTE)
+[x] 13 CI PASS على الفرع (push 36200667110 · PR 36200670665) — وعلى main بعد الدمج
+[x] 14 remote SHA verified — local HEAD == git ls-remote == gh api (لكل دفع)
 ```
 
 ## As-built — ما نُفِّذ فعلياً (وفروق مُقاسة عن الخطة أعلاه)
@@ -187,6 +187,51 @@ $ NODE_ENV=production npm run typecheck → sh: 1: tsc: not found
 
 **قاعدة عامة تُضاف لقواعد الإثبات:** متغيرات البيئة التي تغيّر سلوك سلسلة الأدوات
 (NODE_ENV خصوصاً) لا تُوضع على مستوى الوظيفة — تُوضع في الخطوة التي تحتاجها فعلاً.
+
+### 9) CI — السقوط الأخير وسببه المُقاس (33/34)
+
+بعد §7 و§8 تقلّعت كل الخطوات حتى `Production smoke` وسقطت بـ**33/34 في الجولتين**.
+السبب من annotations (القناة المقروءة عبر API هنا):
+
+```text
+FAIL P1-33: الخادم استهلك نفس الحاوية المعزولة (run-id في السجل)
+     [run=36200345249-22-dd52a49… log=/tmp/leader2027-server.log]
+SMOKE RESULT: 33/34 passed   (الجولة الأولى والثانية سواء)
+```
+
+أي أن الفحص كان صحيحاً والخطأ في الخطوة: `[ci] L27_CI_RUN=…` طُبع في **stdout الخطوة**
+فقط، بينما `$L27_SERVER_LOG` كُتب بـ`>` من `npm start` ⇒ لا سطر هوية في السجل.
+(في إعادة الإنتاج المحلية كنت أكتب السطر بنفسي قبل الإقلاع — فنجح محلياً وسقط في CI:
+فرقٌ بين «ادعاء» و«حقيقة runtime» و«إثبات CI» بالضبط كما تنص القاعدة.)
+
+التصحيح: الخطوة تكتب سطر الهوية إلى السجل **قبل** الإقلاع ثم `npm start >> …`،
+وصار P1-33 يفصّل سببه (`matched` / `run-id not in log` / `log file missing`).
+
+### 10) الإثبات النهائي (CI على الـrunner — لا محلياً)
+
+```text
+push  run 36200667110 · head 802b1b3 · success
+pull_request run 36200670665 (PR #3) · success
+الخطوات: npm ci ✓ · typecheck ✓ · test ✓ · build ✓ ·
+        P2 fail-closed proof ✓ · Production smoke (34×2 + حاوية معزولة) ✓ ·
+        Upload verification evidence ✓
+```
+
+ودلالة خطوة P2 في CI: `boot_exit ≠ 0` **و**`curl_exit ≠ 0` **و**رسالة
+«رفض الإقلاع (fail-closed)» في سجل الخادم — أي أن `next start` على الإنتاج بلا سرّ
+صالح **لا يُقلع** على الـrunner نفسه، لا على جهازي فقط.
+
+### 11) قناتا تشخيص CI عندما تعجز السجلات
+
+`gh run view --log` و`gh api …/jobs/{id}/logs` أعطيا EOF من blob storage طوال الجلسة،
+و`gh pr checks` قال «no checks reported» عند فشل الترجمة. ما عمل فعلاً:
+
+| القناة | ماذا أعطت |
+| --- | --- |
+| `GET /actions/runs/{id}` + `/jobs` | أي خطوة سقطت ومتى (مدة 0s = فشل ترجمة) |
+| `GET /check-runs/{job_id}/annotations` | رسائل tsc كاملة · `::error` الخاصة بالخطوة · أسطر FAIL من smoke |
+| صفحة التشغيل (HTML) | «Invalid workflow file … (Line 14, Col 20): Unrecognized named-value: 'runner'» |
+| `actions/upload-artifact` | سجلات كاملة قابلة للتنزيل عند الحاجة |
 
 
 ## خارجه (صراحة)
