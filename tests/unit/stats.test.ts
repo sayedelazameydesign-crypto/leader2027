@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarize } from "./stats";
-import type { Metric } from "./data";
+import { summarize, computeKpis, type Metric } from "@/lib/domain/stats";
 
 const sample: Metric[] = [
   { id: "a", label: "أ", value: 10, unit: "count", trend: 1 },
@@ -30,5 +29,40 @@ describe("summarize", () => {
     expect(s.totals).toEqual({ count: 0, percent: 0, score: 0 });
     expect(s.avgTrend).toBe(0);
     expect(s.topMover).toBeNull();
+  });
+});
+
+describe("computeKpis", () => {
+  it("يحسب مؤشرات من السجلات المخزَّنة (بدون بيانات تجريبية)", () => {
+    const k = computeKpis({
+      peopleCount: 5,
+      volunteers: [
+        { status: "active" },
+        { status: "active" },
+        { status: "inactive" },
+      ],
+      reports: [
+        { people_contacted: 7, volunteers_present: 2 },
+        { people_contacted: 3, volunteers_present: 1 },
+      ],
+    });
+    expect(k).toEqual({
+      people: 5,
+      volunteers: 2,
+      reports: 2,
+      peopleContacted: 10,
+      volunteersPresent: 3,
+    });
+  });
+
+  it("يعامل السجلات الفارغة بأصفار", () => {
+    const k = computeKpis({ peopleCount: 0, volunteers: [], reports: [] });
+    expect(k).toEqual({
+      people: 0,
+      volunteers: 0,
+      reports: 0,
+      peopleContacted: 0,
+      volunteersPresent: 0,
+    });
   });
 });

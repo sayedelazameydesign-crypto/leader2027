@@ -1,8 +1,9 @@
 # Leader 2027
 
-منصة إنتاجية لإدارة الحسابات والبيانات — لوحة قيادة واحدة.
+منصة تشغيل وإدارة للحملة الانتخابية: أشخاص (وعي بالمصدر)، متطوعون، عمل ميداني،
+تقارير، مؤشرات تشغيلية — في لوحة قيادة واحدة. **بلا أي تفضيلات سياسية** (عقد المنتج §5).
 
-**الحالة:** v0.1.0 — أول vertical slice مكتملة (واجهة ← API ← بيانات ← اختبارات ← جاهزية نشر).
+**الحالة:** VS2 مُنفَّذة — People + Volunteer + Field Report عبر طبقات Domain → Repository → Persistence.
 
 ## التشغيل
 
@@ -10,32 +11,48 @@
 npm install
 npm run dev        # تطوير على http://localhost:3000
 npm run build      # بناء إنتاجي
-npm start          # تشغيل الإنتاج على 0.0.0.0:3000
-npm test           # اختبارات الوحدة (vitest)
-npm run typecheck  # فحص TypeScript
+npm start          # إنتاج على 0.0.0.0:3000
+npm test           # 84+ unit/integration
+npm run smoke      # إثبات production ضد خادم قائم (BASE_URL اختياري)
+npm run typecheck
 ```
 
-## البنية (الشريحة الأولى)
+## حسابات تشغيلية تجريبية (seed-only)
+
+| البريد | الدور |
+| --- | --- |
+| owner@leader2027.test | OWNER |
+| admin@leader2027.test | CAMPAIGN_ADMIN |
+| manager@leader2027.test | CAMPAIGN_MANAGER |
+| coordinator@leader2027.test | FIELD_COORDINATOR |
+| worker@leader2027.test | FIELD_WORKER |
+| viewer@leader2027.test | VIEWER |
+
+كلمة المرور للكل: `Demo!2345` — بيانات تشغيلية فقط وليست إنتاجية.
+
+## البنية
 
 ```text
-app/page.tsx              واجهة لوحة القيادة
-app/api/health/route.ts   فحص صحة الخدمة
-app/api/stats/route.ts    المقاييس + ملخص محسوب
-lib/data.ts               طبقة بيانات تجريبية (تُستبدل بقاعدة بيانات لاحقاً)
-lib/stats.ts              دوال حساب نقية + اختباراتها
-components/LiveDashboard  جلب حي للبيانات في المتصفح
-.github/workflows/ci.yml  فحص CI على كل push (typecheck + test + build)
+app/(app)/    لوحة قيادة، أشخاص، متطوعون، تقارير ميدانية (خلف حدود المصادقة)
+app/login/    الدخول
+app/api/      people / volunteers / field/reports / stats / auth — فوق domain services
+lib/domain/   قواعد الكيانات + services (business logic خارج الـroute handlers)
+lib/repositories/  واجهات المخزن (Domain → Repository Interface → Persistence Adapter)
+lib/persistence/   InMemory + FileJson (var/data/db.json) — PostgreSQL لاحقاً بلا إعادة كتابة domain
+lib/auth+authorization+audit+validation   جلسات HMAC، مصفوفة 6 أدوار، تدقيق لكل mutation، رفض §5
+tests/        unit + integration + smoke (يُشغَّل في CI ضد next start)
 ```
+
+بيئات: `L27_STORE=memory|file` (افتراضي file)، `L27_DB_PATH`، `L27_SESSION_SECRET`.
 
 ## النشر على Vercel
 
-1. افتح [vercel.com/new](https://vercel.com/new) واربط حساب GitHub (مرة واحدة).
-2. استورد المستودع `sayedelazameydesign-crypto/leader2027` — يكتشف Next.js تلقائياً.
-3. اضغط **Deploy** — وكل push على `main` ينشر تلقائياً.
-
-أو من الطرفية: `npx vercel` (يتطلب تسجيل دخول Vercel مرة واحدة من جهازك).
+جاهز (Next.js قياسي + lockfile + CI أخضر). النشر يتطلب ربط حسابك على
+[vercel.com/new](https://vercel.com/new) واستيراد المستودع — أو `npx vercel`.
+**تنويه:** محولّ FileJson ephemeral على serverless؛ الإنتاج المُنشر يحتاج محولّ PostgreSQL
+(خارطة الطريق P1/P2) — الواجهة (`Repository Interface`) مصممة لذلك.
 
 ## المزامنة مع GitHub
 
-آلية المزامنة مثبتة عملياً بدورة `CHANGE → COMMIT → PUSH → VERIFY_REMOTE` —
+آلية مثبتة عملياً: `CHANGE → COMMIT → PUSH → VERIFY_REMOTE` —
 انظر [docs/sync-verification.md](docs/sync-verification.md).

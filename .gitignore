@@ -3,6 +3,7 @@ node_modules/
 .vercel/
 out/
 coverage/
+var/
 *.tsbuildinfo
 .DS_Store
 .env*
