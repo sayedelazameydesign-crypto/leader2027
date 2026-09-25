@@ -397,12 +397,14 @@ async function main() {
     const serverLog = process.env.L27_SERVER_LOG;
     if (ciRun && serverLog) {
       let logged = false;
+      let why = "log file missing";
       try {
         logged = readFileSync(serverLog, "utf-8").includes(ciRun);
+        why = logged ? "matched" : "run-id not in log";
       } catch {
         logged = false;
       }
-      check("P1-33: الخادم استهلك نفس الحاوية المعزولة (run-id في السجل)", logged, `run=${ciRun} log=${serverLog}`);
+      check("P1-33: الخادم استهلك نفس الحاوية المعزولة (run-id في السجل)", logged, `run=${ciRun} log=${serverLog} (${why})`);
     }
   }
 

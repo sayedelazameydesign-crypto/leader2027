@@ -78,21 +78,13 @@ jobs:
           # («العدد قبل/بعد») صحيحة.
           L27_DB_PATH: ${{ runner.temp }}/l27-ci/db.json
         run: |
-          set +e   # القياس أولاً: كل أمر يُسجَّل رمزه، والحكم في النهاية (بلا -e صامت)
-          {
-            echo "### Production smoke — تشخيص مُقاس على الـrunner"
-            echo '```text'
-            echo "pwd=$(pwd)"
-            echo "L27_DB_PATH=$L27_DB_PATH"
-            echo "L27_CI_RUN=$L27_CI_RUN"
-            echo "L27_SERVER_LOG=$L27_SERVER_LOG"
-            echo "RUNNER_TEMP=$RUNNER_TEMP  NODE_ENV=$NODE_ENV  secret_set=$([ -n \"$L27_SESSION_SECRET\" ] && echo yes || echo no)"
-            echo "db_exists_before=$([ -e \"$L27_DB_PATH\" ] && echo yes || echo no)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          node -e "console.log('[ci] L27_CI_RUN=' + process.env.L27_CI_RUN + ' L27_DB_PATH=' + process.env.L27_DB_PATH)"
-          npm start > "$L27_SERVER_LOG" 2>&1 &
+          set +e   # الحكم في النهاية على أكواد صريحة (بلا -e صامت يُخفي سبب السقوط)
+          echo "[ci] L27_CI_RUN=$L27_CI_RUN"
+          echo "[ci] L27_DB_PATH=$L27_DB_PATH (طازجة؟ $([ -e \"$L27_DB_PATH\" ] && echo no || echo yes))"
+          # سطر الهوية يُكتب في سجل الخادم قبل الإقلاع — وهو ما يُطابقه فحص smoke 33
+          # (إثبات أن الخادم والـsmoke يستهلكان الحاوية المعزولة نفسها في هذا التشغيل).
+          echo "[ci] L27_CI_RUN=$L27_CI_RUN L27_DB_PATH=$L27_DB_PATH" > "$L27_SERVER_LOG"
+          npm start >> "$L27_SERVER_LOG" 2>&1 &
           SRV=$!
           echo "server_pid=$SRV"
           ready=no
@@ -112,17 +104,9 @@ jobs:
 
           db_bytes=0
           [ -f "$L27_DB_PATH" ] && db_bytes=$(wc -c < "$L27_DB_PATH")
-          {
-            echo '```text'
-            echo "server_ready=$ready  smoke1_exit=$s1  smoke2_exit=$s2  db_bytes=$db_bytes"
-            echo "--- سجل الخادم (أول 30 سطراً) ---"
-            head -30 "$L27_SERVER_LOG" 2>&1
-            echo "--- smoke الجولة الأولى (آخر 45 سطراً) ---"
-            tail -45 /tmp/smoke1.log 2>&1
-            echo "--- smoke الجولة الثانية (آخر 45 سطراً) ---"
-            tail -45 /tmp/smoke2.log 2>&1
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "server_ready=$ready smoke1_exit=$s1 smoke2_exit=$s2 db_bytes=$db_bytes"
+          tail -3 /tmp/smoke1.log
+          tail -3 /tmp/smoke2.log
 
           kill "$SRV" 2>/dev/null
           ok=1
@@ -139,10 +123,11 @@ jobs:
             grep -n "SMOKE CRASHED\|SMOKE RESULT" /tmp/smoke2.log | while IFS= read -r line; do echo "::error::smoke2 ${line}"; done
           fi
           [ "$db_bytes" -gt 0 ] || { echo "::error::حاوية البيانات المعزولة لم تُكتب ($L27_DB_PATH)"; ok=0; }
+          case "$ready" in yes*) ;; *) echo "::error::الخادم لم يصبح جاهزاً: $ready"; ok=0 ;; esac
           [ "$ok" -eq 1 ] || exit 1
           echo "P1: حاوية معزولة + smoke 34×34 PASS مرتين على خادم production — مُثبت في CI"
       # الإثباتات قابلة للتنزيل عبر API (سجلات الخطوات غير قابلة للتنزيل من بيئة
-      # التشخيص الحالية: EOF من blob storage) — لذا تُرفع كـartifact دائماً.
+      # التشخيص الحالية: EOF من blob storage) — تُرفع دائماً، وتُقرأ عند السقوط فقط.
       - name: "Upload verification evidence (server log + smoke x2 + fail-closed log)"
         if: always()
         uses: actions/upload-artifact@v6
