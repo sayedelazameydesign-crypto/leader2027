@@ -37,19 +37,35 @@ jobs:
           # سرّ CI تجريبي (غير سري بطبيعته) — يُنزع في هذه الخطوة لإثبات الرفض
           L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
         run: |
-          env -u L27_SESSION_SECRET PORT=3100 timeout 60 npm start > /tmp/l27-failclosed.log 2>&1 &
+          set +e
+          LOG=/tmp/l27-failclosed.log
+          env -u L27_SESSION_SECRET PORT=3100 timeout 90 npm start > "$LOG" 2>&1 &
           SRV=$!
           sleep 12
           curl_code=0
           curl -s --max-time 5 -o /dev/null http://127.0.0.1:3100/api/health || curl_code=$?
-          wait $SRV
+          kill -0 "$SRV" 2>/dev/null && alive=yes || alive=no
+          wait "$SRV"
           boot_code=$?
-          echo "--- سجل الخادم المرفوض ---"
-          cat /tmp/l27-failclosed.log
-          echo "boot_exit=$boot_code  curl_exit=$curl_code  (كلاهما يجب ألا يكون 0)"
-          test "$boot_code" -ne 0
-          test "$curl_code" -ne 0
-          grep -q "fail-closed" /tmp/l27-failclosed.log
+          # التشخيص منشور في job summary — تنزيل سجلات الخطوات غير متاح من بيئة
+          # التشخيص الحالية (EOF من blob storage)، فالملخص هو قناة الإثبات البديلة.
+          {
+            echo "### P2 fail-closed proof — تشخيص مُقاس على الـrunner"
+            echo '```text'
+            echo "boot_exit=$boot_code curl_exit=$curl_code alive_after_12s=$alive"
+            echo "node=$(node -v) npm=$(npm -v) shell=$BASH_VERSION"
+            echo "NODE_ENV(step)=$NODE_ENV  L27_SESSION_SECRET في الخطوة معرّف؟ $([ -n "$L27_SESSION_SECRET" ] && echo yes || echo no)"
+            echo "--- سجل الخادم المرفوض ($LOG) ---"
+            cat "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "boot_exit=$boot_code curl_exit=$curl_code alive=$alive"
+          ok=1
+          [ "$boot_code" -ne 0 ] || { echo "::error::الخادم أقلع رغم غياب السرّ (boot_exit=0) — البوابة لم تُطبق"; ok=0; }
+          [ "$curl_code" -ne 0 ] || { echo "::error::المنفذ 3100 استجاب رغم غياب السرّ — fail-open"; ok=0; }
+          grep -q "fail-closed" "$LOG" || { echo "::error::رسالة الرفض (fail-closed) غير موجودة في سجل الخادم"; ok=0; }
+          [ "$ok" -eq 1 ] || exit 1
+          echo "P2 fail-closed: مُثبت على خادم حقيقي في CI"
 
       # P1 + إنتاج: خادم واحد بحاوية معزولة، وsmoke يُنفَّذ مرتين (34+34 فحصاً)
       # لإثبات الحتمية — أي اعتماد على حالة تشغيل سابق يُسقط الجولة الثانية.
