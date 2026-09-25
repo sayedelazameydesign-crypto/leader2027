@@ -1,8 +1,14 @@
 /**
  * Smoke — إثبات production على خادم next start حقيقي (AC12-17).
- * صفر اعتمادات — fetch فقط. يعمل محلياً وفي CI.
+ * صفر اعتمادات — fetch + node:fs/node:path فقط. يعمل محلياً وفي CI.
  * BASE_URL افتراضي: http://127.0.0.1:3000
+ *
+ * P1 — يُشغَّل مرتين ضد نفس الخادم ونفس حاوية البيانات في CI لإثبات الحتمية
+ * (لا فحص يعتمد حالة تشغيل سابق).
  */
+import { readFileSync, statSync } from "node:fs";
+import { createHmac } from "node:crypto";
+
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const results = [];
 
@@ -370,6 +376,45 @@ async function main() {
       }, owner);
       check("VS3-12: تاريخ فاسد → 400 + بريد مكرر → 409", bad.status === 400 && dup.status === 409, `bad=${bad.status} dup=${dup.status}`);
     }
+  }
+
+  // ——— P1: حاوية البيانات المعزولة + حتمية التشغيل المزدوج (فحصا إثبات) ———
+  {
+    const dbPath = process.env.L27_DB_PATH;
+    if (dbPath) {
+      let ok = false;
+      let size = -1;
+      try {
+        size = statSync(dbPath).size;
+        ok = size > 0;
+      } catch {
+        ok = false;
+      }
+      check("P1-32: حاوية البيانات المعزولة كُتبت فعلاً (L27_DB_PATH)", ok, `path=${dbPath} bytes=${size}`);
+    }
+
+    const ciRun = process.env.L27_CI_RUN;
+    const serverLog = process.env.L27_SERVER_LOG;
+    if (ciRun && serverLog) {
+      let logged = false;
+      try {
+        logged = readFileSync(serverLog, "utf-8").includes(ciRun);
+      } catch {
+        logged = false;
+      }
+      check("P1-33: الخادم استهلك نفس الحاوية المعزولة (run-id في السجل)", logged, `run=${ciRun} log=${serverLog}`);
+    }
+  }
+
+  // ——— P2: سرّ التطوير المنشور لم يعد يفتح الإنتاج (fail-closed) ———
+  {
+    const forgedBody = Buffer.from(
+      JSON.stringify({ uid: "user-owner", exp: Date.now() + 60_000, ep: 0 }),
+      "utf-8",
+    ).toString("base64url");
+    const forged = `${forgedBody}.${createHmac("sha256", "l27-dev-secret-change-me").update(forgedBody).digest("hex")}`;
+    const { res } = await req("/api/stats", {}, `l27_session=${forged}`);
+    check("P2-34: cookie موقّع بسرّ التطوير المكشوف مرفوض ← 401", res.status === 401, `status=${res.status}`);
   }
 
   // ملخص

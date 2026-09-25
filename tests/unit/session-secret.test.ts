@@ -11,13 +11,16 @@ import {
 
 const VALID = "ci-only-secret-0123456789";
 
-const ENV_KEYS = ["NODE_ENV", "L27_SESSION_SECRET"] as const;
-const saved = ENV_KEYS.map((k) => [k, process.env[k]] as const);
+// NODE_ENV مُعلَن read-only في أنواع Next — نعدّله عبر واجهة قابلة للكتابة
+// (سلوك الاختبار نفسه: env فعلي يُقرأ من resolveSessionSecret داخل session.ts).
+const env = process.env as unknown as Record<string, string | undefined>;
+const ENV_KEYS = ["NODE_ENV", "L27_SESSION_SECRET"];
+const saved = ENV_KEYS.map((key) => [key, env[key]] as const);
 
 afterEach(() => {
   for (const [key, value] of saved) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
+    if (value === undefined) delete env[key];
+    else env[key] = value;
   }
   resetSessionSecretCache();
 });
@@ -74,29 +77,29 @@ describe("P2 — التكامل مع البيئة الحقيقية (process.env)
   });
 
   it("NODE_ENV=production بلا سرّ ⇒ توقيع الجلسة يرفض (fail-closed عند أول استخدام)", () => {
-    process.env.NODE_ENV = "production";
-    delete process.env.L27_SESSION_SECRET;
+    env.NODE_ENV = "production";
+    delete env.L27_SESSION_SECRET;
     resetSessionSecretCache();
     expect(() => createSessionToken("user-owner")).toThrow(/fail-closed/);
     expect(() => readSessionToken("x.y")).toThrow(/fail-closed/);
   });
 
   it("NODE_ENV=production + سرّ صالح ⇒ يعمل، والتوكن مربوط بالسرّ", () => {
-    process.env.NODE_ENV = "production";
-    process.env.L27_SESSION_SECRET = VALID;
+    env.NODE_ENV = "production";
+    env.L27_SESSION_SECRET = VALID;
     resetSessionSecretCache();
     const token = createSessionToken("user-owner", 0);
     expect(readSessionToken(token)?.uid).toBe("user-owner");
 
     // تغيير السرّ يُبطل التوكن القديم (لا توقيع عابر للبيئات)
-    process.env.L27_SESSION_SECRET = "another-ci-secret-987654321";
+    env.L27_SESSION_SECRET = "another-ci-secret-987654321";
     resetSessionSecretCache();
     expect(readSessionToken(token)).toBeNull();
   });
 
   it("NODE_ENV=production + سرّ التطوير ⇒ يرفض حتى لو «معرّف»", () => {
-    process.env.NODE_ENV = "production";
-    process.env.L27_SESSION_SECRET = DEV_SESSION_SECRET;
+    env.NODE_ENV = "production";
+    env.L27_SESSION_SECRET = DEV_SESSION_SECRET;
     resetSessionSecretCache();
     expect(() => createSessionToken("user-owner")).toThrow(/مساوٍ لسرّ التطوير/);
   });
