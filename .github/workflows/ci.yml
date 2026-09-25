@@ -78,15 +78,56 @@ jobs:
           # («العدد قبل/بعد») صحيحة.
           L27_DB_PATH: ${{ runner.temp }}/l27-ci/db.json
         run: |
+          set +e   # القياس أولاً: كل أمر يُسجَّل رمزه، والحكم في النهاية (بلا -e صامت)
+          {
+            echo "### Production smoke — تشخيص مُقاس على الـrunner"
+            echo '```text'
+            echo "pwd=$(pwd)"
+            echo "L27_DB_PATH=$L27_DB_PATH"
+            echo "L27_CI_RUN=$L27_CI_RUN"
+            echo "L27_SERVER_LOG=$L27_SERVER_LOG"
+            echo "RUNNER_TEMP=$RUNNER_TEMP  NODE_ENV=$NODE_ENV  secret_set=$([ -n \"$L27_SESSION_SECRET\" ] && echo yes || echo no)"
+            echo "db_exists_before=$([ -e \"$L27_DB_PATH\" ] && echo yes || echo no)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
           node -e "console.log('[ci] L27_CI_RUN=' + process.env.L27_CI_RUN + ' L27_DB_PATH=' + process.env.L27_DB_PATH)"
-          test ! -e "$L27_DB_PATH" && echo "الحاوية طازجة (لا db.json قبل الإقلاع)"
           npm start > "$L27_SERVER_LOG" 2>&1 &
           SRV=$!
-          trap 'kill $SRV 2>/dev/null' EXIT
-          npm run smoke
-          echo "--- جولة ثانية على نفس الحاوية: إثبات الحتمية ---"
-          npm run smoke
-          echo "--- سجل الخادم (إثبات استهلاك الحاوية المعزولة) ---"
-          head -5 "$L27_SERVER_LOG"
-          test -s "$L27_DB_PATH"
-          echo "الحاوية المعزولة مكتوبة: $(wc -c < "$L27_DB_PATH") bytes في $L27_DB_PATH"
+          echo "server_pid=$SRV"
+          ready=no
+          for i in $(seq 1 40); do
+            sleep 1
+            code=0
+            curl -s --max-time 2 -o /dev/null http://127.0.0.1:3000/api/health || code=$?
+            if [ "$code" -eq 0 ]; then ready="yes (after ${i}s)"; break; fi
+            kill -0 "$SRV" 2>/dev/null || { ready="no — عملية الخادم ماتت بعد ${i}s"; break; }
+          done
+          echo "server_ready=$ready"
+
+          npm run smoke > /tmp/smoke1.log 2>&1
+          s1=$?
+          npm run smoke > /tmp/smoke2.log 2>&1
+          s2=$?
+
+          db_bytes=0
+          [ -f "$L27_DB_PATH" ] && db_bytes=$(wc -c < "$L27_DB_PATH")
+          {
+            echo '```text'
+            echo "server_ready=$ready  smoke1_exit=$s1  smoke2_exit=$s2  db_bytes=$db_bytes"
+            echo "--- سجل الخادم (أول 30 سطراً) ---"
+            head -30 "$L27_SERVER_LOG" 2>&1
+            echo "--- smoke الجولة الأولى (آخر 45 سطراً) ---"
+            tail -45 /tmp/smoke1.log 2>&1
+            echo "--- smoke الجولة الثانية (آخر 45 سطراً) ---"
+            tail -45 /tmp/smoke2.log 2>&1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          kill "$SRV" 2>/dev/null
+          ok=1
+          [ "$s1" -eq 0 ] || { echo "::error::smoke الجولة الأولى فشلت (exit=$s1)"; ok=0; }
+          [ "$s2" -eq 0 ] || { echo "::error::smoke الجولة الثانية فشلت (exit=$s2) — الحتمية غير مثبتة"; ok=0; }
+          [ "$db_bytes" -gt 0 ] || { echo "::error::حاوية البيانات المعزولة لم تُكتب ($L27_DB_PATH)"; ok=0; }
+          [ "$ok" -eq 1 ] || exit 1
+          echo "P1: حاوية معزولة + smoke 34×34 PASS مرتين على خادم production — مُثبت في CI"
