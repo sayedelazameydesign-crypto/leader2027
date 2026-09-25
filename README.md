@@ -3,8 +3,9 @@
 منصة تشغيل وإدارة للحملة الانتخابية: أشخاص (وعي بالمصدر)، متطوعون، عمل ميداني،
 تقارير، مؤشرات تشغيلية — في لوحة قيادة واحدة. **بلا أي تفضيلات سياسية** (عقد المنتج §5).
 
-**الحالة:** VS1+VS2 = **MERGED في main (PR #1 — `ae977e4`)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات محلية خضراء**
-(typecheck ✅ · 98/98 ✅ · build ✅ · smoke 31/31 ✅) — عقدها المُقفَّل `docs/contract-vs3.md` وخطة `docs/plan-vs3.md`.
+**الحالة:** VS1+VS2 = **MERGED في main (PR #1 — `ae977e4`)** · VS3 (نواة الحملة الإدارية) =
+**MERGED في main (PR #2 — `7916b20`، `mergedAt = 2026-09-25T22:31:03Z`)** · بعدها P1+P2 (حاوية CI المعزولة +
+الإقلاع fail-closed) منفَّذان على فرع العمل — الخطتان: `docs/contract-vs3.md` · `docs/plan-vs3.md` · `docs/plan-p1-p2.md`.
 
 ## التشغيل
 
@@ -13,8 +14,8 @@ npm install
 npm run dev        # تطوير على http://localhost:3000
 npm run build      # بناء إنتاجي
 npm start          # إنتاج على 0.0.0.0:3000
-npm test           # 98 unit/integration
-npm run smoke      # 31 فحص production ضد خادم قائم (BASE_URL اختياري)
+npm test           # 130 unit/integration
+npm run smoke      # 34 فحص production ضد خادم قائم (BASE_URL اختياري)
 npm run typecheck
 ```
 
@@ -47,14 +48,45 @@ lib/auth+authorization+audit+validation   جلسات HMAC (session_epoch)، مص
 tests/        unit + integration + smoke (يُشغَّل في CI ضد next start)
 ```
 
-بيئات: `L27_STORE=memory|file` (افتراضي file)، `L27_DB_PATH`، `L27_SESSION_SECRET`.
+### بيئات
 
-## النشر على Vercel
+| المتغير | المعنى |
+| --- | --- |
+| `L27_STORE` | `file` (افتراضي) أو `memory` |
+| `L27_DB_PATH` | مسار حاوية البيانات (في CI: `runner.temp` — معزولة وطازجة لكل تشغيل) |
+| `L27_SESSION_SECRET` | **إلزامي على الإنتاج** (`NODE_ENV=production` + `next start`) — ≥ 16 حرفاً ولا يساوي سرّ التطوير |
+| `L27_CI_RUN` | يُطبع في سجل الخادم ليُطابَق مع فحص smoke 33 (إثبات استهلاك الحاوية المعزولة) |
+| `L27_SERVER_LOG` | مسار سجل الخادم الذي يقرأه smoke لفحص المطابقة أعلاه |
 
-جاهز (Next.js قياسي + lockfile + CI أخضر). النشر يتطلب ربط حسابك على
-[vercel.com/new](https://vercel.com/new) واستيراد المستودع — أو `npx vercel`.
-**تنويه مُثبَّت:** القرص ephemeral على Vercel serverless — محولّ PostgreSQL لاحقاً فوق نفس
-الواجهة (`Repository Interface`) بلا إعادة كتابة domain (TODO موثّق في `lib/persistence/file-json.ts`).
+**P2 — الإقلاع fail-closed:** `next start` على الإنتاج بلا سرّ صالح **لا يُقلع أصلاً**
+(exit ≠ 0 ورسالة «رفض الإقلاع (fail-closed): …» من `next.config.mjs` ← `lib/runtime/config.mjs`).
+القاعدة نقية ومُختبَرة (`tests/unit/runtime-config.test.ts` · `tests/unit/session-secret.test.ts`)
+ومُثبَّتة على خادم حقيقي في خطوة CI «P2 fail-closed proof». `next build` مستثنى صراحةً
+(السرّ لازم وقت التشغيل لا التجميع)، والتطوير/الاختبارات تعمل بسرّ التطوير بلا انحدار.
+نموذج المتغيرات في `.env.example` — **لا أسرار حقيقية في المستودع**.
+
+لإعادة إنتاج بوابة الإنتاج محلياً (نفس شروط CI):
+
+```bash
+NODE_ENV=production L27_DB_PATH=$PWD/var/local/db.json \
+L27_SESSION_SECRET=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))") \
+npm start          # ثم في طرف آخر: npm run smoke (مرتين لإثبات الحتمية)
+```
+
+## النشر على Vercel — **BLOCKED (لا يُقدَّم VERIFIED قط)**
+
+لم يُنفَّذ أي نشر في أي جلسة: بلا اعتماد Vercel وبلا وصول للحساب، فلا URL حيّ
+ولا اختبار حيّ ⇒ الحالة **BLOCKED** وليست DEPLOYED.
+
+ما هو جاهز تقنياً: Next.js قياسي + lockfile + CI أخضر. وما يلزم قبل أي نشر فعلي:
+
+1. ربط الحساب على [vercel.com/new](https://vercel.com/new) أو `npx vercel login`.
+2. تعريف `L27_SESSION_SECRET` في متغيرات بيئة Vercel (≥16 حرفاً، عشوائي) —
+   **بدونه يفشل الإقلاع/البناء عمداً** (P2 fail-closed).
+3. **`FileJson` ليس persistence إنتاجياً على Vercel:** القرص ephemeral في serverless،
+   فالمحوّل الحالي يفقد البيانات بين الاستدعاءات ولا يتشاركها بين_instances.
+   النشر الإنتاجي مشروط بمحولّ PostgreSQL فوق نفس `Repository Interface`
+   (TODO موثّق في `lib/persistence/file-json.ts`) — بلا إعادة كتابة domain.
 
 ## المزامنة مع GitHub
 
@@ -62,4 +94,6 @@ tests/        unit + integration + smoke (يُشغَّل في CI ضد next start
 انظر [docs/sync-verification.md](docs/sync-verification.md).
 
 قواعد ملزمة: لا commit قبل تغيير مقصود + بوابات خضراء · الدمج بإثبات `mergedAt ≠ null` ·
-النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعلياً.
+النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعلياً ·
+ادعاء README ≠ حقيقة runtime ≠ إثبات CI — الثلاثة تُقاس كلٌّ على حدة ولا يُقدَّم أحدها بدل الآخر
+(`FileJson` ليس persistence إنتاجياً على Vercel: القرص ephemeral — PostgreSQL لاحقاً فوق نفس الواجهة).

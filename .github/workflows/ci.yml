@@ -7,6 +7,17 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      # سياق github مسموح في env على مستوى الوظيفة. أما `runner` فمسموح **في مستوى
+      # الخطوة فقط** — وضعه هنا يفشل الترجمة قبل أي job:
+      #   Invalid workflow file (Line 14, Col 20): Unrecognized named-value: 'runner'
+      # ⇒ L27_DB_PATH (حاوية P1 المعزولة) معرَّف في env الخطوة الأخيرة.
+      L27_CI_RUN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.sha }}
+      L27_SERVER_LOG: /tmp/leader2027-server.log
+      # تنبيه مُقاس: **لا NODE_ENV هنا**. NODE_ENV=production على مستوى الوظيفة جعل
+      # `npm ci` يتخطى devDependencies (محلياً: 27 حزمة فقط و`tsc: not found`؛ وفي CI
+      # سقط typecheck بـ«no interface JSX.IntrinsicElements» لغياب @types/react).
+      # لذلك NODE_ENV=production معرَّف في خطوتَي الخادم فقط (أسفله).
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -17,7 +28,115 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: "Production smoke (evidence: AC1-11 on next start)"
+
+      # P2 — إثبات سلوكي على خادم حقيقي (لا نص في README): next start على الإنتاج
+      # بلا سرّ صالح لا يُقلع أصلاً — exit ≠ 0 + رسالة «رفض الإقلاع (fail-closed)».
+      - name: "P2 fail-closed proof — next start refuses to boot without a valid L27_SESSION_SECRET"
+        env:
+          NODE_ENV: production
+          # سرّ CI تجريبي (غير سري بطبيعته) — يُنزع في هذه الخطوة لإثبات الرفض
+          L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
         run: |
-          npm start > /tmp/leader2027-server.log 2>&1 &
-          npm run smoke
+          set +e
+          LOG=/tmp/l27-failclosed.log
+          env -u L27_SESSION_SECRET PORT=3100 timeout 90 npm start > "$LOG" 2>&1 &
+          SRV=$!
+          sleep 12
+          curl_code=0
+          curl -s --max-time 5 -o /dev/null http://127.0.0.1:3100/api/health || curl_code=$?
+          kill -0 "$SRV" 2>/dev/null && alive=yes || alive=no
+          wait "$SRV"
+          boot_code=$?
+          # التشخيص منشور في job summary — تنزيل سجلات الخطوات غير متاح من بيئة
+          # التشخيص الحالية (EOF من blob storage)، فالملخص هو قناة الإثبات البديلة.
+          {
+            echo "### P2 fail-closed proof — تشخيص مُقاس على الـrunner"
+            echo '```text'
+            echo "boot_exit=$boot_code curl_exit=$curl_code alive_after_12s=$alive"
+            echo "node=$(node -v) npm=$(npm -v) shell=$BASH_VERSION"
+            echo "NODE_ENV(step)=$NODE_ENV  L27_SESSION_SECRET في الخطوة معرّف؟ $([ -n "$L27_SESSION_SECRET" ] && echo yes || echo no)"
+            echo "--- سجل الخادم المرفوض ($LOG) ---"
+            cat "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "boot_exit=$boot_code curl_exit=$curl_code alive=$alive"
+          ok=1
+          [ "$boot_code" -ne 0 ] || { echo "::error::الخادم أقلع رغم غياب السرّ (boot_exit=0) — البوابة لم تُطبق"; ok=0; }
+          [ "$curl_code" -ne 0 ] || { echo "::error::المنفذ 3100 استجاب رغم غياب السرّ — fail-open"; ok=0; }
+          grep -q "fail-closed" "$LOG" || { echo "::error::رسالة الرفض (fail-closed) غير موجودة في سجل الخادم"; ok=0; }
+          [ "$ok" -eq 1 ] || exit 1
+          echo "P2 fail-closed: مُثبت على خادم حقيقي في CI"
+
+      # P1 + إنتاج: خادم واحد بحاوية معزولة، وsmoke يُنفَّذ مرتين (34+34 فحصاً)
+      # لإثبات الحتمية — أي اعتماد على حالة تشغيل سابق يُسقط الجولة الثانية.
+      - name: "Production smoke (evidence AC1-16 on next start, isolated container, deterministic x2)"
+        env:
+          NODE_ENV: production
+          L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
+          # P1 — حاوية بيانات معزولة وطازجة لكل تشغيل: خارج شجرة العمل (runner.temp)
+          # فلا تتسرب حالة smoke بين الخطوات أو بين التشغيلات، وتبقى الفحوص الحتمية
+          # («العدد قبل/بعد») صحيحة.
+          L27_DB_PATH: ${{ runner.temp }}/l27-ci/db.json
+        run: |
+          set +e   # الحكم في النهاية على أكواد صريحة (بلا -e صامت يُخفي سبب السقوط)
+          echo "[ci] L27_CI_RUN=$L27_CI_RUN"
+          echo "[ci] L27_DB_PATH=$L27_DB_PATH (طازجة؟ $([ -e \"$L27_DB_PATH\" ] && echo no || echo yes))"
+          # سطر الهوية يُكتب في سجل الخادم قبل الإقلاع — وهو ما يُطابقه فحص smoke 33
+          # (إثبات أن الخادم والـsmoke يستهلكان الحاوية المعزولة نفسها في هذا التشغيل).
+          echo "[ci] L27_CI_RUN=$L27_CI_RUN L27_DB_PATH=$L27_DB_PATH" > "$L27_SERVER_LOG"
+          npm start >> "$L27_SERVER_LOG" 2>&1 &
+          SRV=$!
+          echo "server_pid=$SRV"
+          ready=no
+          for i in $(seq 1 40); do
+            sleep 1
+            code=0
+            curl -s --max-time 2 -o /dev/null http://127.0.0.1:3000/api/health || code=$?
+            if [ "$code" -eq 0 ]; then ready="yes (after ${i}s)"; break; fi
+            kill -0 "$SRV" 2>/dev/null || { ready="no — عملية الخادم ماتت بعد ${i}s"; break; }
+          done
+          echo "server_ready=$ready"
+
+          npm run smoke > /tmp/smoke1.log 2>&1
+          s1=$?
+          npm run smoke > /tmp/smoke2.log 2>&1
+          s2=$?
+
+          db_bytes=0
+          [ -f "$L27_DB_PATH" ] && db_bytes=$(wc -c < "$L27_DB_PATH")
+          echo "server_ready=$ready smoke1_exit=$s1 smoke2_exit=$s2 db_bytes=$db_bytes"
+          tail -3 /tmp/smoke1.log
+          tail -3 /tmp/smoke2.log
+
+          kill "$SRV" 2>/dev/null
+          ok=1
+          if [ "$s1" -ne 0 ]; then
+            ok=0
+            echo "::error::smoke الجولة الأولى فشلت (exit=$s1)"
+            grep -n "^FAIL" /tmp/smoke1.log | head -20 | while IFS= read -r line; do echo "::error::smoke1 ${line}"; done
+            grep -n "SMOKE CRASHED\|SMOKE RESULT" /tmp/smoke1.log | while IFS= read -r line; do echo "::error::smoke1 ${line}"; done
+          fi
+          if [ "$s2" -ne 0 ]; then
+            ok=0
+            echo "::error::smoke الجولة الثانية فشلت (exit=$s2) — الحتمية غير مثبتة"
+            grep -n "^FAIL" /tmp/smoke2.log | head -20 | while IFS= read -r line; do echo "::error::smoke2 ${line}"; done
+            grep -n "SMOKE CRASHED\|SMOKE RESULT" /tmp/smoke2.log | while IFS= read -r line; do echo "::error::smoke2 ${line}"; done
+          fi
+          [ "$db_bytes" -gt 0 ] || { echo "::error::حاوية البيانات المعزولة لم تُكتب ($L27_DB_PATH)"; ok=0; }
+          case "$ready" in yes*) ;; *) echo "::error::الخادم لم يصبح جاهزاً: $ready"; ok=0 ;; esac
+          [ "$ok" -eq 1 ] || exit 1
+          echo "P1: حاوية معزولة + smoke 34×34 PASS مرتين على خادم production — مُثبت في CI"
+      # الإثباتات قابلة للتنزيل عبر API (سجلات الخطوات غير قابلة للتنزيل من بيئة
+      # التشخيص الحالية: EOF من blob storage) — تُرفع دائماً، وتُقرأ عند السقوط فقط.
+      - name: "Upload verification evidence (server log + smoke x2 + fail-closed log)"
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: verification-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/leader2027-server.log
+            /tmp/smoke1.log
+            /tmp/smoke2.log
+            /tmp/l27-failclosed.log
+          if-no-files-found: warn
+          retention-days: 7
