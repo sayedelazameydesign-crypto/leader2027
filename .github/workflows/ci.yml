@@ -14,10 +14,10 @@ jobs:
       # ⇒ L27_DB_PATH (حاوية P1 المعزولة) معرَّف في env الخطوة الأخيرة.
       L27_CI_RUN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.sha }}
       L27_SERVER_LOG: /tmp/leader2027-server.log
-      # P2 — fail-closed: الإنتاج بلا سرّ صريح = رفض الإقلاع. سرّ CI تجريبي
-      # (غير سري بطبيعته) — الأسرار الحقيقية لا تدخل المستودع ولا ملفاته.
-      NODE_ENV: production
-      L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
+      # تنبيه مُقاس: **لا NODE_ENV هنا**. NODE_ENV=production على مستوى الوظيفة جعل
+      # `npm ci` يتخطى devDependencies (محلياً: 27 حزمة فقط و`tsc: not found`؛ وفي CI
+      # سقط typecheck بـ«no interface JSX.IntrinsicElements» لغياب @types/react).
+      # لذلك NODE_ENV=production معرَّف في خطوتَي الخادم فقط (أسفله).
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -32,6 +32,10 @@ jobs:
       # P2 — إثبات سلوكي على خادم حقيقي (لا نص في README): next start على الإنتاج
       # بلا سرّ صالح لا يُقلع أصلاً — exit ≠ 0 + رسالة «رفض الإقلاع (fail-closed)».
       - name: "P2 fail-closed proof — next start refuses to boot without a valid L27_SESSION_SECRET"
+        env:
+          NODE_ENV: production
+          # سرّ CI تجريبي (غير سري بطبيعته) — يُنزع في هذه الخطوة لإثبات الرفض
+          L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
         run: |
           env -u L27_SESSION_SECRET PORT=3100 timeout 60 npm start > /tmp/l27-failclosed.log 2>&1 &
           SRV=$!
@@ -51,6 +55,8 @@ jobs:
       # لإثبات الحتمية — أي اعتماد على حالة تشغيل سابق يُسقط الجولة الثانية.
       - name: "Production smoke (evidence AC1-16 on next start, isolated container, deterministic x2)"
         env:
+          NODE_ENV: production
+          L27_SESSION_SECRET: ci-only-secret-not-a-real-0123456789
           # P1 — حاوية بيانات معزولة وطازجة لكل تشغيل: خارج شجرة العمل (runner.temp)
           # فلا تتسرب حالة smoke بين الخطوات أو بين التشغيلات، وتبقى الفحوص الحتمية
           # («العدد قبل/بعد») صحيحة.

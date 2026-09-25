@@ -160,6 +160,34 @@ Located at position 1 within expression: runner.temp
 (لا سجل) ولا في `gh pr checks` («no checks reported»)؛ مصدره صفحة التشغيل
 (`Invalid workflow file` + السطر/العمود).
 
+### 8) CI — `NODE_ENV=production` على مستوى الوظيفة يكسر سلسلة الأدوات (مُقاس)
+
+بعد تصحيح §7 تقلّع CI فعلاً (jobs أُنشئت) وسقطت خطوة `npm run typecheck` في ~2s.
+التشخيص من annotations (السجلات نفسها تعذّر تنزيلها — EOF من blob storage):
+
+```text
+app/(app)/admin/page.tsx#L18  Could not find a declaration file for module 'react/jsx-runtime'
+app/(app)/admin/page.tsx#L19+ JSX element implicitly has type 'any' because no interface
+                              'JSX.IntrinsicElements' exists
+```
+
+أي أن `@types/react` **غير مثبّت** في الـrunner. أُعيد الإنتاج محلياً حرفياً:
+
+```text
+$ NODE_ENV=production npm ci      → added 27 packages   (بدلاً من الشجرة الكاملة)
+$ NODE_ENV=production npm run typecheck → sh: 1: tsc: not found
+```
+
+فالسبب: `NODE_ENV=production` معرَّف في `env` الوظيفة ⇒ يُورَّث إلى `npm ci` و`npm test`
+و`npm run build` ⇒ تثبيت/أدوات بنمط إنتاجي بلا devDependencies.
+
+التصحيح: `NODE_ENV=production` (+ `L27_SESSION_SECRET`) في **خطوتَي الخادم فقط**
+(fail-closed proof · production smoke) — خطوات `npm ci/typecheck/test/build` بلا NODE_ENV.
+النتيجة: نفس دلالة P2 (بوابة الإقلاع تُختبر على خادم production حقيقي) بلا كسر الأدوات.
+
+**قاعدة عامة تُضاف لقواعد الإثبات:** متغيرات البيئة التي تغيّر سلوك سلسلة الأدوات
+(NODE_ENV خصوصاً) لا تُوضع على مستوى الوظيفة — تُوضع في الخطوة التي تحتاجها فعلاً.
+
 
 ## خارجه (صراحة)
 
