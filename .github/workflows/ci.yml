@@ -126,8 +126,32 @@ jobs:
 
           kill "$SRV" 2>/dev/null
           ok=1
-          [ "$s1" -eq 0 ] || { echo "::error::smoke الجولة الأولى فشلت (exit=$s1)"; ok=0; }
-          [ "$s2" -eq 0 ] || { echo "::error::smoke الجولة الثانية فشلت (exit=$s2) — الحتمية غير مثبتة"; ok=0; }
+          if [ "$s1" -ne 0 ]; then
+            ok=0
+            echo "::error::smoke الجولة الأولى فشلت (exit=$s1)"
+            grep -n "^FAIL" /tmp/smoke1.log | head -20 | while IFS= read -r line; do echo "::error::smoke1 ${line}"; done
+            grep -n "SMOKE CRASHED\|SMOKE RESULT" /tmp/smoke1.log | while IFS= read -r line; do echo "::error::smoke1 ${line}"; done
+          fi
+          if [ "$s2" -ne 0 ]; then
+            ok=0
+            echo "::error::smoke الجولة الثانية فشلت (exit=$s2) — الحتمية غير مثبتة"
+            grep -n "^FAIL" /tmp/smoke2.log | head -20 | while IFS= read -r line; do echo "::error::smoke2 ${line}"; done
+            grep -n "SMOKE CRASHED\|SMOKE RESULT" /tmp/smoke2.log | while IFS= read -r line; do echo "::error::smoke2 ${line}"; done
+          fi
           [ "$db_bytes" -gt 0 ] || { echo "::error::حاوية البيانات المعزولة لم تُكتب ($L27_DB_PATH)"; ok=0; }
           [ "$ok" -eq 1 ] || exit 1
           echo "P1: حاوية معزولة + smoke 34×34 PASS مرتين على خادم production — مُثبت في CI"
+      # الإثباتات قابلة للتنزيل عبر API (سجلات الخطوات غير قابلة للتنزيل من بيئة
+      # التشخيص الحالية: EOF من blob storage) — لذا تُرفع كـartifact دائماً.
+      - name: "Upload verification evidence (server log + smoke x2 + fail-closed log)"
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: verification-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/leader2027-server.log
+            /tmp/smoke1.log
+            /tmp/smoke2.log
+            /tmp/l27-failclosed.log
+          if-no-files-found: warn
+          retention-days: 7
