@@ -8,10 +8,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      # P1 — حاوية بيانات معزولة وطازجة لكل تشغيل CI: خارج شجرة العمل (runner.temp)،
-      # فلا تتسرب حالة smoke بين الخطوات أو بين التشغيلات، وتبقى الفحوص الحتمية
-      # («العدد قبل/بعد») صحيحة. القيمة تُطبع في سجل الخادم لمطابقتها (فحص smoke 33).
-      L27_DB_PATH: ${{ runner.temp }}/l27-ci/db.json
+      # سياق github مسموح في env على مستوى الوظيفة. أما `runner` فمسموح **في مستوى
+      # الخطوة فقط** — وضعه هنا يفشل الترجمة قبل أي job:
+      #   Invalid workflow file (Line 14, Col 20): Unrecognized named-value: 'runner'
+      # ⇒ L27_DB_PATH (حاوية P1 المعزولة) معرَّف في env الخطوة الأخيرة.
       L27_CI_RUN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.sha }}
       L27_SERVER_LOG: /tmp/leader2027-server.log
       # P2 — fail-closed: الإنتاج بلا سرّ صريح = رفض الإقلاع. سرّ CI تجريبي
@@ -31,7 +31,7 @@ jobs:
 
       # P2 — إثبات سلوكي على خادم حقيقي (لا نص في README): next start على الإنتاج
       # بلا سرّ صالح لا يُقلع أصلاً — exit ≠ 0 + رسالة «رفض الإقلاع (fail-closed)».
-      - name: "P2 fail-closed proof: next start refuses to boot without a valid L27_SESSION_SECRET"
+      - name: "P2 fail-closed proof — next start refuses to boot without a valid L27_SESSION_SECRET"
         run: |
           env -u L27_SESSION_SECRET PORT=3100 timeout 60 npm start > /tmp/l27-failclosed.log 2>&1 &
           SRV=$!
@@ -49,7 +49,12 @@ jobs:
 
       # P1 + إنتاج: خادم واحد بحاوية معزولة، وsmoke يُنفَّذ مرتين (34+34 فحصاً)
       # لإثبات الحتمية — أي اعتماد على حالة تشغيل سابق يُسقط الجولة الثانية.
-      - name: "Production smoke (evidence: AC1-16 on next start, isolated container, deterministic x2)"
+      - name: "Production smoke (evidence AC1-16 on next start, isolated container, deterministic x2)"
+        env:
+          # P1 — حاوية بيانات معزولة وطازجة لكل تشغيل: خارج شجرة العمل (runner.temp)
+          # فلا تتسرب حالة smoke بين الخطوات أو بين التشغيلات، وتبقى الفحوص الحتمية
+          # («العدد قبل/بعد») صحيحة.
+          L27_DB_PATH: ${{ runner.temp }}/l27-ci/db.json
         run: |
           node -e "console.log('[ci] L27_CI_RUN=' + process.env.L27_CI_RUN + ' L27_DB_PATH=' + process.env.L27_DB_PATH)"
           test ! -e "$L27_DB_PATH" && echo "الحاوية طازجة (لا db.json قبل الإقلاع)"

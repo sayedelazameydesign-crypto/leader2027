@@ -140,6 +140,26 @@ npm start (production + سرّ صريح + حاوية معزولة) + npm run smo
 P2 fail-closed على خادم حقيقي → exit 1 + الرسالة + لا منفذ
 ```
 
+### 7) CI — فشل ترجمة مُقاس ثم تصحيح (لا تخمين)
+
+أول دفع لهذه الخطة أنتج تشغيل CI فاشلاً **بلا أي job** (مدة 0s) — ورسالة GitHub
+(من صفحة التشغيل نفسها، إذ لا jobs ولا annotations ولا log):
+
+```text
+Invalid workflow file: .github/workflows/ci.yml#L1
+(Line: 14, Col: 20): Unrecognized named-value: 'runner'.
+Located at position 1 within expression: runner.temp
+```
+
+السبب: سياق `runner` **غير متاح في `env` على مستوى الوظيفة** — يُقبل في مستوى
+الخطوة فقط (`github`/`vars`/`secrets` تُقبل في الاثنين). التصحيح: `L27_DB_PATH`
+انتقل إلى `env` خطوة الـsmoke (`${{ runner.temp }}/l27-ci/db.json`)، وبقي
+`L27_CI_RUN` (سياق `github`) على مستوى الوظيفة لأن الخطوتين تحتاجانه.
+
+الدرس المُثبَّت: «CI PASS» بند يُقاس — وفشل الترجمة لا يظهر في `gh run view --log`
+(لا سجل) ولا في `gh pr checks` («no checks reported»)؛ مصدره صفحة التشغيل
+(`Invalid workflow file` + السطر/العمود).
+
 
 ## خارجه (صراحة)
 
