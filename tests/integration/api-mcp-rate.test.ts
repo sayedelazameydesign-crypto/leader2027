@@ -3,7 +3,7 @@ import { createMemoryRepos } from "@/lib/persistence/memory";
 import { seededStore } from "@/lib/persistence/seed";
 import { setRepos } from "@/lib/repositories/container";
 import { createSessionToken } from "@/lib/auth/session";
-import { resetRateLimits } from "@/lib/http-guards";
+import { resetRateLimits } from "@/lib/rate-limit";
 import { POST as mcpPost } from "@/app/api/mcp/route";
 
 const cookieFor = (uid: string) => ({ cookie: `l27_session=${createSessionToken(uid)}` });

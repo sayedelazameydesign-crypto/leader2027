@@ -1,13 +1,12 @@
 /**
  * أدوات حماية سطح HTTP — VS5 (مراجعة ما قبل النشر).
  *
- * 1) `assertSameOrigin` — دفاع CSRF عميق: طلبات المتصفح المُغيِّرة (POST/PATCH/…)
- *    يجب أن تحمل Origin مطابقًا للمضيف. SameSite=Lax + JSON-only يفعلان الأصل،
- *    وهذه الطبقة تُغلق ما تبقّى. الطلبات بلا Origin (curl/اختبارات) تُقبل — CSRF
- *    ظاهرة متصفحية، والتوثيق يبقى الجلسة الموقّعة.
- * 2) `rateLimit` — مُخدد معدّل في الذاكرة لكل عملية (نافذة منزلقة). كبح للتخمين
- *    والإساءة، وليس حدًا عالميًا — على serverless متعدد الحالات يُكمَّل بمخدد
- *    مُوزَّع (V5.2+).
+ * `assertSameOrigin` — دفاع CSRF عميق: طلبات المتصفح المُغيِّرة (POST/PATCH/…)
+ * يجب أن تحمل Origin مطابقًا للمضيف. SameSite=Lax + JSON-only يفعلان الأصل،
+ * وهذه الطبقة تُغلق ما تبقّى (متصفح قديم، subdomain). الطلبات بلا Origin
+ * (curl/اختبارات) تُقبل — CSRF ظاهرة متصفحية، والتوثيق يبقى الجلسة الموقّعة.
+ *
+ * مُخدد المعدل انتقل إلى `lib/rate-limit.ts` (واجهة قابلة للاستبدال: ذاكرة/Postgres).
  */
 import { NextResponse } from "next/server";
 
@@ -42,27 +41,4 @@ export function assertSameOrigin(req: Request): NextResponse | null {
     { errors: { _auth: "طلب من أصل غير مطابق (CSRF) — مرفوض" } },
     { status: 403 },
   );
-}
-
-type Bucket = number[];
-
-const buckets = new Map<string, Bucket>();
-
-/** يسمح إن كان تحت الحد داخل النافذة — وإلا false. */
-export function rateLimit(key: string, limit: number, windowMs: number, now = Date.now()): boolean {
-  const bucket = buckets.get(key) ?? [];
-  const cutoff = now - windowMs;
-  const recent = bucket.filter((t) => t > cutoff);
-  if (recent.length >= limit) {
-    buckets.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  buckets.set(key, recent);
-  return true;
-}
-
-/** للاختبارات — مسح المخزّن. */
-export function resetRateLimits(): void {
-  buckets.clear();
 }

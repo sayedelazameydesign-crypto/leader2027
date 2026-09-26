@@ -48,6 +48,15 @@ function ensureSchema(dsn: string): void {
     [],
     dsn,
   );
+  syncQuery(
+    `CREATE TABLE IF NOT EXISTS l27_rate (
+       bucket_key   TEXT PRIMARY KEY,
+       window_start BIGINT NOT NULL,
+       count        BIGINT NOT NULL
+     )`,
+    [],
+    dsn,
+  );
 }
 
 function load(dsn: string): Store | null {

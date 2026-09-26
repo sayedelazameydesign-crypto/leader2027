@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 import { getRepos } from "@/lib/repositories/container";
 import { isResponse, requireUserForApi } from "@/lib/auth/request";
-import { rateLimit } from "@/lib/http-guards";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { handleMcpPayload, resolveSessionId } from "@/lib/mcp/server";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +23,10 @@ export async function POST(req: Request) {
   const sessionId = resolveSessionId(req.headers.get("mcp-session-id"));
   const agentName = (req.headers.get("x-l27-agent") ?? "").trim().slice(0, 40) || null;
 
-  // مُخدد: 60 طلبًا/دقيقة لكل (وكيل | مستخدم) — كبح للتخمين والإساءة (V5.2+ يُوزَّع).
+  // مُخدد: 60 طلبًا/دقيقة لكل (وكيل | مستخدم) — الخلفية موزَّعة في الإنتاج
+  // (Postgres عبر lib/rate-limit.ts) فلا يُفرَّغها cold start على serverless.
   const clientKey = `mcp:${agentName ? `agent:${agentName}` : user.id}`;
-  if (!rateLimit(clientKey, 60, 60_000)) {
+  if (!(await checkRateLimit(clientKey, 60, 60_000))) {
     return NextResponse.json(
       {
         jsonrpc: "2.0",

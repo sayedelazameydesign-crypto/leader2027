@@ -6,3 +6,10 @@ CREATE TABLE IF NOT EXISTS l27_store (
   version    BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- مُخدد المعدل الموزَّع (lib/rate-limit.ts) — عدّاد نافذة ثابتة لكل مفتاح.
+CREATE TABLE IF NOT EXISTS l27_rate (
+  bucket_key   TEXT PRIMARY KEY,
+  window_start BIGINT NOT NULL,
+  count        BIGINT NOT NULL
+);
