@@ -43,7 +43,7 @@ jobs:
 
       - name: "T4-1/2/3/6 — إثبات الحافة + XFF + cold-start + الكوكي"
         env:
-          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-19f4sdope-celia-fashions-projects.vercel.app' }}
+          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-celia-fashions-projects.vercel.app' }}
           WAIT_COLD: ${{ inputs.wait_cold || '0' }}
           L27_T4_LOGIN_EMAIL: ${{ secrets.L27_T4_LOGIN_EMAIL }}
           L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
@@ -55,7 +55,7 @@ jobs:
       - name: "T4-7 — smoke ضد الرابط الحيّ"
         if: always()
         env:
-          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-19f4sdope-celia-fashions-projects.vercel.app' }}
+          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-celia-fashions-projects.vercel.app' }}
           L27_DEMO_PASSWORD: ${{ secrets.L27_DEMO_PASSWORD }}
         run: |
           if [ -z "$L27_DEMO_PASSWORD" ]; then
