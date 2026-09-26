@@ -3,7 +3,7 @@ import { getRepos } from "@/lib/repositories/container";
 import { publicUser } from "@/lib/auth/request";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
-import { assertSameOrigin } from "@/lib/http-guards";
+import { assertSameOrigin, clientIp } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +19,8 @@ export async function POST(req: Request) {
   const password = typeof body?.password === "string" ? body.password : "";
 
   // مُخدد التخمين: 10 محاولات/دقيقة لكل (IP × بريد) — كبح للتخمين brute-force.
-  // الخلفية قابلة للاستبدال (lib/rate-limit.ts): ذاكرة للتطوير · Postgres موزَّع للإنتاج.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  // الهوية من ترويسة موثوقة (`clientIp`) — لا XFF (أيسر عنصر يتحكم فيه العميل).
+  const ip = clientIp(req);
   if (!(await checkRateLimit(`login:${ip}:${email}`, 10, 60_000))) {
     return NextResponse.json(
       { errors: { _auth: "محاولات دخول كثيرة — أعد المحاولة بعد دقيقة" } },

@@ -23,16 +23,48 @@ beforeEach(() => {
 afterEach(() => {
   setRepos(null);
   resetRateLimits();
+  delete process.env.L27_CLIENT_IP_HEADER;
 });
 
 describe("مُخدد بوابة الوكلاء", () => {
+  it("🔴 XFF متغيّر في كل طلب لا يتجاوز الحد — الهوية من الترويسة الموثوقة لا XFF", async () => {
+    // كل طلب بترويسة x-forwarded-for مختلفة (يتحكم بها المهاجم) — ولو كانت موثوقة
+    // لفتح دلواً جديداً لكل طلب ولما بلغ الحد أبداً. المطلوب: الحد يبقى كما هو.
+    let last = 0;
+    for (let i = 0; i < 61; i += 1) {
+      last = (
+        await mcpPost(initReq({ "x-forwarded-for": `203.0.113.${i}` }))
+      ).status;
+      if (i < 60) expect(last).toBe(401); // فشل مصادقة — يُستهلك من دلو الفشل
+    }
+    expect(last).toBe(429); // الـ61 ⇒ دلو الفشل امتلأ رغم تدوير XFF
+  });
+
+  it("الهوية الموثوقة (x-real-ip) تفصل الدلاء فعلاً — ضابط إيجابي", async () => {
+    for (let i = 0; i < 60; i += 1) {
+      await mcpPost(initReq({ "x-real-ip": "198.51.100.1" }));
+    }
+    expect((await mcpPost(initReq({ "x-real-ip": "198.51.100.1" }))).status).toBe(429);
+    // IP مختلف حيّله مستقلة — يبدأ من رصيده
+    expect((await mcpPost(initReq({ "x-real-ip": "198.51.100.2" }))).status).toBe(401);
+  });
+
+  it("L27_CLIENT_IP_HEADER يغيّر مصدر الحقيقة (لا XFF افتراضيًا)", async () => {
+    process.env.L27_CLIENT_IP_HEADER = "cf-connecting-ip";
+    for (let i = 0; i < 60; i += 1) {
+      await mcpPost(initReq({ "cf-connecting-ip": "203.0.113.9" }));
+    }
+    // الترويسة الموثوقة وحدها التي تُستهلك — ولو مرّرت XFF بترويسات مختلفة
+    expect(
+      (await mcpPost(initReq({ "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "1.2.3.4" }))).status,
+    ).toBe(429);
+  });
+
   it("البند 1: تغيير x-l27-agent في كل طلب لا يتجاوز الحد — المفتاح user.id", async () => {
-    // 60 طلبًا وكيلها يتغيّر كل مرة ⇒ دلو واحد للمستخدم مهما تبدّلت الترويسة
     for (let i = 0; i < 60; i += 1) {
       const res = await mcpPost(initReq({ ...cookieFor("user-viewer"), "x-l27-agent": `spoof-${i}` }));
       expect(res.status).toBe(200);
     }
-    // الـ61 باسم وكيل جديد تمامًا ⇒ يُرفض من سقف المستخدم
     const limited = await mcpPost(
       initReq({ ...cookieFor("user-viewer"), "x-l27-agent": "brand-new-agent" }),
     );
@@ -45,7 +77,6 @@ describe("مُخدد بوابة الوكلاء", () => {
     for (let i = 0; i < 20; i += 1) {
       expect((await mcpPost(initReq(headers))).status).toBe(200);
     }
-    // الوكيل نفسه مرهون — والوكيل الآخر ما زال مسموحاً (سقف المستخدم لم يبلغ)
     expect((await mcpPost(initReq(headers))).status).toBe(429);
     const otherAgent = await mcpPost(
       initReq({ ...cookieFor("user-viewer"), "x-l27-agent": "fresh-agent" }),
@@ -53,25 +84,20 @@ describe("مُخدد بوابة الوكلاء", () => {
     expect(otherAgent.status).toBe(200);
   });
 
-  it("مستخدم آخر معزول تمامًا عن دلو الأول", async () => {
-    for (let i = 0; i < 60; i += 1) {
-      await mcpPost(initReq({ ...cookieFor("user-viewer"), "x-l27-agent": `a-${i}` }));
+  it("🟠 NAT: مستخدمون شرعيون خلف IP واحد لا يُحجبون عند حدّ الفشل", async () => {
+    const nat = { "x-real-ip": "10.0.0.7" };
+    // 3 مستخدمين × 20 نجاحًا = 60 طلبًا شرعيًا من IP واحد — بلا حجب IP مطلقًا
+    for (const uid of ["user-viewer", "user-coordinator", "user-manager"]) {
+      for (let i = 0; i < 20; i += 1) {
+        const res = await mcpPost(initReq({ ...cookieFor(uid), ...nat }));
+        expect(res.status).toBe(200);
+      }
     }
-    expect((await mcpPost(initReq(cookieFor("user-viewer")))).status).toBe(429);
-    expect((await mcpPost(initReq(cookieFor("user-coordinator")))).status).toBe(200);
-  });
-
-  it("البند 5: مُخدد IP قبل المصادقة — فيضان غير مصادَق يُكبح بلا DB lookup", async () => {
-    const headers = { "x-forwarded-for": "203.0.113.55" };
-    for (let i = 0; i < 120; i += 1) {
-      const res = await mcpPost(initReq(headers));
-      expect(res.status).toBe(401); // يُكبح قبل المصادقة لكنه لا يُحمَّل DB
+    // الحد الذي يُحمَّل هو سقف المستخدم (60) لا سقف IP — نُكمل viewer إلى 60
+    for (let i = 0; i < 40; i += 1) {
+      expect((await mcpPost(initReq({ ...cookieFor("user-viewer"), ...nat }))).status).toBe(200);
     }
-    const limited = await mcpPost(initReq(headers));
-    expect(limited.status).toBe(429);
-    // IP آخر لا يتأثّر
-    const other = await mcpPost(initReq({ "x-forwarded-for": "198.51.100.20" }));
-    expect(other.status).toBe(401);
+    expect((await mcpPost(initReq({ ...cookieFor("user-viewer"), ...nat }))).status).toBe(429);
   });
 
   it("الردود تحمل Cache-Control: no-store (البند 10)", async () => {

@@ -8,7 +8,9 @@
  * عبر `x-l27-agent` (توثيق لا سلطة). الكتابة مرفوضة قبل التنفيذ + موثّقة في التدقيق.
  *
  * الطبقات بالترتيب (مراجعة ما قبل النشر):
- *   1) مُخدد IP **قبل المصادقة** (120/دقيقة) — فيضان غير مصادَق بلا استعلام DB.
+ *   1) كبح فيضان خشن (600/دقيقة لكل IP موثوق) + دلو فشل (60/دقيقة) — قبل
+ *      المصادقة وبلا استعلام DB. **لا XFF**: الهوية من ترويسة موثوقة واحدة
+ *      (`clientIp`) — قابلية تدوير الترويسات مُغلقة كليًا.
  *   2) `requireUserForApi` = فحص الأصل ثم الجلسة (نفس كل المسارات — لا استثناء).
  *   3) مُخدد المستخدم (60/دقيقة) بمفتاح **user.id لا ترويسة يتحكم بها العميل**،
  *      + مُخدد وكيل ثانوي (20/دقيقة) — تغيير `x-l27-agent` لا يرفع السقف.
@@ -17,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { getRepos } from "@/lib/repositories/container";
 import { isResponse, requireUserForApi } from "@/lib/auth/request";
+import { clientIp } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { handleMcpPayload, resolveSessionId } from "@/lib/mcp/server";
 
@@ -24,16 +27,14 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-}
-
 export async function POST(req: Request) {
   const sessionId = resolveSessionId(req.headers.get("mcp-session-id"));
   const headers = { "Mcp-Session-Id": sessionId, ...NO_STORE };
+  const ip = clientIp(req);
 
-  // 1) كبح الفيضان غير المصادَق — قبل أي بحث في قاعدة البيانات.
-  if (!(await checkRateLimit(`mcp:ip:${clientIp(req)}`, 120, 60_000))) {
+  // 1) فيضان خشن — سقف عالٍ لا يقيّد العمل الطبيعي خلف NAT؛ ودلو فشل يُستهلك
+  //    عند ردود 401/403 فقط: بعد 60 فشلًا/دقيقة تتحول الردود إلى 429.
+  if (!(await checkRateLimit(`mcp:ip:${ip}`, 600, 60_000))) {
     return NextResponse.json(
       {
         jsonrpc: "2.0",
@@ -48,6 +49,17 @@ export async function POST(req: Request) {
   const repos = getRepos();
   const user = requireUserForApi(repos, req);
   if (isResponse(user)) {
+    const failuresLeft = await checkRateLimit(`mcp:ip:fail:${ip}`, 60, 60_000);
+    if (!failuresLeft) {
+      return NextResponse.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32029, message: "محاولات فاشلة كثيرة — أعد المحاولة بعد دقيقة" },
+        },
+        { status: 429, headers },
+      );
+    }
     user.headers.set("Cache-Control", "no-store");
     return user;
   }

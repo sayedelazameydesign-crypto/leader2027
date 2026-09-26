@@ -39,6 +39,7 @@ describe("أمن الدخول والكوكي (مراجعة ما قبل النش�
   it("الكوكي: HttpOnly + SameSite=Lax + Path — وSecure في الإنتاج", async () => {
     setEnv("NODE_ENV", "production");
     setEnv("L27_ALLOW_INSECURE_SECRET", "1");
+    setEnv("L27_TRUST_EDGE", "1"); // سياسة الأصل إلزامية في الإنتاج (البند ج)
     const res = await loginPost(loginReq("viewer@leader2027.test", "Demo!2345"));
     expect(res.status).toBe(200);
     const cookie = res.headers.get("set-cookie") ?? "";
@@ -86,17 +87,24 @@ describe("أمن الدخول والكوكي (مراجعة ما قبل النش�
     expect(res.status).toBe(201);
   });
 
-  it("مُخدد الدخول: 10 محاولات/دقيقة لكل (IP × بريد) ثم 429", async () => {
-    const headers = { "x-forwarded-for": "203.0.113.7" };
+  it("مُخدد الدخول: 10 محاولات/دقيقة لكل (IP × بريد) ثم 429 — والهوية من الترويسة الموثوقة", async () => {
+    const headers = { "x-real-ip": "203.0.113.7" };
     for (let i = 0; i < 10; i += 1) {
       const res = await loginPost(loginReq("viewer@leader2027.test", "wrong-pass", headers));
       expect(res.status).toBe(401);
     }
     const limited = await loginPost(loginReq("viewer@leader2027.test", "wrong-pass", headers));
     expect(limited.status).toBe(429);
-    // نفس البريد من IP آخر لا يتأثّر
+    // تدوير XFF لا يفتح دلواً جديداً — وال IP الموثوق مختلف لا يتأثّر
+    const spoof = await loginPost(
+      loginReq("viewer@leader2027.test", "wrong-pass", {
+        ...headers,
+        "x-forwarded-for": "8.8.8.8",
+      }),
+    );
+    expect(spoof.status).toBe(429);
     const other = await loginPost(
-      loginReq("viewer@leader2027.test", "wrong-pass", { "x-forwarded-for": "198.51.100.9" }),
+      loginReq("viewer@leader2027.test", "wrong-pass", { "x-real-ip": "198.51.100.9" }),
     );
     expect(other.status).toBe(401);
   });

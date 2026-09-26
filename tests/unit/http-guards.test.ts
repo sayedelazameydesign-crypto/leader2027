@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { assertSameOrigin } from "@/lib/http-guards";
+import { assertSameOrigin, clientIp } from "@/lib/http-guards";
 import {
   MemoryRateLimiter,
   PostgresRateLimiter,
@@ -10,8 +10,77 @@ function req(method: string, url: string, headers: Record<string, string> = {}) 
   return new Request(url, { method, headers });
 }
 
+const saved: Record<string, string | undefined> = {};
+function setEnv(key: string, value: string | undefined) {
+  if (!(key in saved)) saved[key] = process.env[key];
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
+
 afterEach(() => {
   delete process.env.L27_ALLOWED_HOSTS;
+  for (const [k, v] of Object.entries(saved)) setEnv(k, v);
+  for (const k of Object.keys(saved)) delete saved[k];
+});
+
+describe("clientIp — الهوية الموثوقة للمُخدد", () => {
+  it("تقرأ x-real-ip (الافتراضي) — وتتجاهل XFF كليًا", () => {
+    const r = req("POST", "http://test/api", {
+      "x-real-ip": "203.0.113.50",
+      "x-forwarded-for": "1.2.3.4, 5.6.7.8",
+    });
+    expect(clientIp(r)).toBe("203.0.113.50");
+  });
+
+  it("بلا ترويسة موثوقة ⇒ unknown — لا تخمين من XFF أبدًا", () => {
+    expect(clientIp(req("POST", "http://test/api", { "x-forwarded-for": "9.9.9.9" }))).toBe("unknown");
+    expect(clientIp(req("POST", "http://test/api"))).toBe("unknown");
+  });
+
+  it("L27_CLIENT_IP_HEADER يغيّر المصدر (ضابط إيجابي)", () => {
+    setEnv("L27_CLIENT_IP_HEADER", "cf-connecting-ip");
+    const r = req("POST", "http://test/api", {
+      "cf-connecting-ip": "198.51.100.8",
+      "x-forwarded-for": "1.1.1.1",
+    });
+    expect(clientIp(r)).toBe("198.51.100.8");
+  });
+});
+
+describe("سياسة الأصل في الإنتاج (البند ج) — لا ثقة XFH صامتة", () => {
+  const mutating = () => req("POST", "http://test/api/people", { origin: "http://test" });
+
+  it("إنتاج بلا L27_ALLOWED_HOSTS ولا L27_TRUST_EDGE ⇒ فشل صريح", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", undefined);
+    expect(() => assertSameOrigin(mutating())).toThrow(/L27_ALLOWED_HOSTS/);
+  });
+
+  it("L27_TRUST_EDGE=1 يُصرِّح بالوضع المشتق · القائمة تكفي وحدها · البناء معفى", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", "1");
+    expect(assertSameOrigin(mutating())).toBeNull();
+
+    setEnv("L27_TRUST_EDGE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", "test");
+    expect(assertSameOrigin(mutating())).toBeNull();
+
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("NEXT_PHASE", "phase-production-build");
+    expect(assertSameOrigin(mutating())).toBeNull();
+  });
+
+  it("القراءة (GET) لا تُفرض عليها السياسة", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", undefined);
+    expect(assertSameOrigin(req("GET", "http://test/api/people"))).toBeNull();
+  });
 });
 
 describe("فحص الأصل (CSRF defense-in-depth)", () => {

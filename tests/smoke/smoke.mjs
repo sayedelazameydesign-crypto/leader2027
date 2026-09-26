@@ -3,7 +3,8 @@
  * صفر اعتمادات — fetch فقط. يعمل محلياً وفي CI.
  * BASE_URL افتراضي: http://127.0.0.1:3000
  * ⚠️ الخادم المُختبَر يعمل بحسابات العرض: شغّله بـ L27_SEED_DEMO_ACCOUNTS=1
- * (+ L27_SESSION_SECRET في الإنتاج) — انظر .env.example.
+ * (+ L27_SESSION_SECRET وL27_ALLOWED_HOSTS=127.0.0.1,localhost في الإنتاج)
+ * — انظر .env.example.
  */
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const results = [];

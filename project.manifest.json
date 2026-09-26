@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "223/223"
+      "expected": "231/231"
     },
     {
       "id": "build",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "223 unit/integration (166 قائمة + 57 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
-      "en": "223 unit/integration (166 existing + 57 new — including 8 live against Postgres: storage contract + distributed limiter)"
+      "ar": "231 unit/integration (166 قائمة + 65 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
+      "en": "231 unit/integration (166 existing + 65 new — including 8 live against Postgres: storage contract + distributed limiter)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -860,6 +860,24 @@
       "note": {
         "ar": "إلحاح صريح لخلفية المُخدد المحلي — يُحذَّر منه في الإنتاج (cold start يفرّغ العدّاد)",
         "en": "Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters)"
+      }
+    },
+    {
+      "name": "L27_CLIENT_IP_HEADER",
+      "default": "x-real-ip",
+      "values": "x-real-ip | cf-connecting-ip | …",
+      "note": {
+        "ar": "ترويسة هوية العميل الموثوقة للمُخدد — لا يُقرأ x-forwarded-for إطلاقًا (قابل للتدوير من العميل)",
+        "en": "Trusted client-identity header for rate limiting — x-forwarded-for is never read (client-rotatable)"
+      }
+    },
+    {
+      "name": "L27_TRUST_EDGE",
+      "default": "—",
+      "values": "1",
+      "note": {
+        "ar": "تصريح صريح بحافة مُنظِّفة موثوقة (مثل معاينات الوسيط) — البديل: L27_ALLOWED_HOSTS (موصى به)",
+        "en": "Explicit trust in a sanitizing edge (e.g. proxy previews) — alternative: L27_ALLOWED_HOSTS (recommended)"
       }
     }
   ],
