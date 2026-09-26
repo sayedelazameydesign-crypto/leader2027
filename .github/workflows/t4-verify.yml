@@ -49,8 +49,8 @@ jobs:
           L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
         run: |
           node scripts/t4-verify.mjs "$BASE_URL" --wait-cold "${WAIT_COLD:-0}" | tee /tmp/verify-out.txt | tee -a "$GITHUB_STEP_SUMMARY"
-          # إعادة بثّ السطور كأوامر notice مباشرة (صادرات node عبر الأنبوب لا تُعالَج)
-          while IFS= read -r l; do echo "::notice::${l:0:550}"; done < /tmp/verify-out.txt
+          # إعادة بثّ السطور كأوامر notice — عنوان ASCII مفرد (الصيغ الأخرى تُسقطها المحلّل)
+          while IFS= read -r l; do echo "::notice title=T4::${l:0:550}"; done < /tmp/verify-out.txt
 
       - name: "T4-7 — smoke ضد الرابط الحيّ"
         if: always()
