@@ -35,14 +35,16 @@ if [ "$phase" = "deploy" ]; then
   printf '1'                  | npx --yes vercel@latest env add L27_TRUST_EDGE production
   printf 'postgres'           | npx --yes vercel@latest env add L27_STORE production
   printf '%s' "$DATABASE_URL" | npx --yes vercel@latest env add DATABASE_URL production
-  # مرحلة التحقق فقط — تُلغى في finalize (T4-7)
+  # مرحلة التحقق فقط — كلها تُلغى في finalize (T4-7 + لا بصمة بنية بعدها)
   printf '1'                  | npx --yes vercel@latest env add L27_SEED_DEMO_ACCOUNTS production
   printf '%s' "$demo_pw"      | npx --yes vercel@latest env add L27_DEMO_PASSWORD production
+  printf '1'                  | npx --yes vercel@latest env add L27_DEBUG_HEADERS production
   echo "✅ L27_SESSION_SECRET ≥32 عشوائي و L27_DEMO_PASSWORD مُدوَّر — ولن يُطبعا أبدًا"
   npx --yes vercel@latest deploy --prod
 elif [ "$phase" = "finalize" ]; then
   npx --yes vercel@latest env rm L27_SEED_DEMO_ACCOUNTS production --yes || true
   npx --yes vercel@latest env rm L27_DEMO_PASSWORD production --yes || true
+  npx --yes vercel@latest env rm L27_DEBUG_HEADERS production --yes || true
   domain="${L27_T4_DOMAIN:?L27_T4_DOMAIN مطلوب (نطاق النشر)}"
   printf '%s' "$domain" | npx --yes vercel@latest env add L27_ALLOWED_HOSTS production
   npx --yes vercel@latest deploy --prod

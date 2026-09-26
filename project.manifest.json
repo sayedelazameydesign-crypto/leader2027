@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "235/235"
+      "expected": "237/237"
     },
     {
       "id": "build",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "235 unit/integration (166 قائمة + 69 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
-      "en": "235 unit/integration (166 existing + 69 new — including 8 live against Postgres: storage contract + distributed limiter)"
+      "ar": "237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
+      "en": "237 unit/integration (166 existing + 71 new — including 8 live against Postgres: storage contract + distributed limiter)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -882,6 +882,15 @@
       "required": false,
       "note": "القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا.",
       "noteEn": "The previous value is burned and removed — never reuse a published password."
+    },
+    {
+      "name": "L27_DEBUG_HEADERS",
+      "description": "يُفعّل route التشخيص /api/debug/headers — مُطفأ افتراضيًا (404)؛ مرحلة التحقق الحيّ فقط ويُلغى بعدها.",
+      "descriptionEn": "Enables the /api/debug/headers diagnostic route — off by default (404); live-verification phase only, removed afterwards.",
+      "default": "",
+      "required": false,
+      "note": "لا يُفعَّل في الإنتاج بعد T4 — بصمة بنية (يكشف Vercel).",
+      "noteEn": "Never enable in production after T4 — infrastructure fingerprint."
     }
   ],
   "deploy": {

@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 235 unit/integration (166 قائمة + 69 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع) |
+| `npm run test` | 237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع) |
 | `npm run smoke` | 49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
@@ -165,13 +165,14 @@ tests/        unit / integration / smoke
 | `L27_CLIENT_IP_HEADER` | x-real-ip \| cf-connecting-ip \| … | `x-real-ip` | ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر). |
 | `L27_TRUST_EDGE` | 1 | `—` | edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين). |
 | `L27_DEMO_PASSWORD` | — | `` | القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا. |
+| `L27_DEBUG_HEADERS` | — | `` | لا يُفعَّل في الإنتاج بعد T4 — بصمة بنية (يكشف Vercel). |
 
 ## بوابات الجودة
 
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **235/235** |
+| `tests` | `npm test` | **237/237** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |
