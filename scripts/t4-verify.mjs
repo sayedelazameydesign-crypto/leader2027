@@ -26,13 +26,22 @@ function skip(name, detail) {
 
 async function main() {
   // 1) إثبات x-real-ip — هل تكتبها الحافة فعلًا ومُنظَّفة؟
-  const d = await fetch(`${BASE}/api/debug/headers`, { cache: "no-store" }).then((r) => r.json());
-  const realIpOne = typeof d.realIp === "string" && d.realIp.length > 0 && !d.realIp.includes(",");
-  check(
-    "T4-1 x-real-ip مكتوبة ومُنظَّفة (بديل: x-vercel-forwarded-for)",
-    realIpOne,
-    JSON.stringify({ realIp: d.realIp, vercelFwd: d.vercelFwd, xff: d.xff }).slice(0, 160),
-  );
+  const dRes = await fetch(`${BASE}/api/debug/headers`, { cache: "no-store" });
+  if (dRes.status !== 200) {
+    check(
+      "T4-1 x-real-ip (route التشخيص)",
+      false,
+      `HTTP ${dRes.status} — فعّل L27_DEBUG_HEADERS=1 في env النشر (أو finalize أزاله مبكرًا)`,
+    );
+  } else {
+    const d = await dRes.json();
+    const realIpOne = typeof d.realIp === "string" && d.realIp.length > 0 && !d.realIp.includes(",");
+    check(
+      "T4-1 x-real-ip مكتوبة ومُنظَّفة (بديل: x-vercel-forwarded-for)",
+      realIpOne,
+      JSON.stringify({ realIp: d.realIp, vercelFwd: d.vercelFwd, xff: d.xff }).slice(0, 160),
+    );
+  }
 
   if (waitMin > 0) {
     console.log(`… انتظار ${waitMin} دقيقة لبدء cold start (بلا طلبات)`);
