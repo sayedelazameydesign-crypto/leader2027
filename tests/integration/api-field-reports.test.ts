@@ -144,3 +144,102 @@ describe("api-field-reports: happy + invalid + authorization", () => {
     expect(afterData.kpis.volunteersPresent).toBe(beforeData.kpis.volunteersPresent + 2);
   });
 });
+
+/**
+ * HTTP-level regression (PR #8) — إثبات السلسلة كاملة:
+ * HTTP → route → مصادقة → سياسة → خدمة → مستودع → مخزن.
+ *
+ * اختبار الوحدة للسياسة وحده غير كافٍ: هذه الحالات تمرّ عبر الـroute الحقيقي
+ * بجلسة حقيقية، وبيانات الملكية/الدور التالفة تُحقن في **مستوى المخزن**
+ * (وهو الطريق الوحيد للوصولية — جسم الطلب لا يستطيع حقنها:
+ * `reported_by` يُset خادميًا في service.ts:35 والدور مُتحقَّق بـisRole في
+ * validation/users.ts:47,90).
+ */
+describe("api-field-reports: التفويض fail-closed مع بيانات تالفة (F-01a/F-01b)", () => {
+  const patchNotes = (cookie: Record<string, string>, id: string, notes = "محاولة") =>
+    patchRoute(jsonReq("PATCH", { notes }, cookie), { params: Promise.resolve({ id }) });
+
+  it("F-01a: تقرير بلا reported_by في المخزن + FIELD_WORKER ⇒ 403 ولا كتابة", async () => {
+    const store = seededStore();
+    const victimId = store.reports[0].id;
+    delete (store.reports[0] as { reported_by?: string }).reported_by;
+    setRepos(createMemoryRepos(store));
+
+    const res = await patchNotes(cookieFor("user-worker"), victimId, "استغلال غياب الملكية");
+    expect(res.status).toBe(403);
+    expect(getRepos().reports.getById(victimId)?.notes).not.toBe("استغلال غياب الملكية");
+  });
+
+  it("F-01a: reported_by تالف (null / رقم / نص فارغ) + FIELD_WORKER ⇒ 403", async () => {
+    for (const bad of [null, 123, ""]) {
+      const store = seededStore();
+      const victimId = store.reports[0].id;
+      (store.reports[0] as { reported_by?: unknown }).reported_by = bad;
+      setRepos(createMemoryRepos(store));
+
+      const res = await patchNotes(cookieFor("user-worker"), victimId);
+      expect(res.status, `reported_by=${JSON.stringify(bad)}`).toBe(403);
+    }
+  });
+
+  it("لا تغيير في دلالات الأدوار الأخرى: المنسّق يعدّل الملاحظات رغم غياب الملكية ⇒ 200", async () => {
+    const store = seededStore();
+    const victimId = store.reports[0].id;
+    delete (store.reports[0] as { reported_by?: string }).reported_by;
+    setRepos(createMemoryRepos(store));
+
+    const res = await patchNotes(cookieFor("user-coordinator"), victimId, "مراجعة المنسق");
+    expect(res.status).toBe(200);
+    expect(getRepos().reports.getById(victimId)?.notes).toBe("مراجعة المنسق");
+  });
+
+  it("F-01b: مستخدم دوره اسم من Object.prototype ⇒ 403/قائمة فارغة، لا 500", async () => {
+    const store = seededStore();
+    const worker = store.users.find((u) => u.id === "user-worker");
+    (worker as { role: string }).role = "toString";
+    setRepos(createMemoryRepos(store));
+
+    // الجلسة صالحة (التوقيع وepoch سليمين) لكن الدور تالف ⇒ منع افتراضي صريح
+    const list = await listRoute(
+      new Request("http://test/api/field/reports", { headers: cookieFor("user-worker") }),
+    );
+    expect(list.status).toBe(200);
+    expect((await list.json()).reports).toEqual([]);
+
+    const patch = await patchNotes(cookieFor("user-worker"), store.reports[0].id);
+    expect(patch.status).toBe(403);
+
+    const create = await createRoute(jsonReq("POST", validBody, cookieFor("user-worker")));
+    expect(create.status).toBe(403);
+  });
+
+  it("دور غير معروف في المخزن (UNKNOWN) ⇒ كل الإجراءات ممنوعة عبر HTTP", async () => {
+    const store = seededStore();
+    (store.users.find((u) => u.id === "user-viewer") as { role: string }).role = "UNKNOWN";
+    setRepos(createMemoryRepos(store));
+
+    const list = await listRoute(
+      new Request("http://test/api/field/reports", { headers: cookieFor("user-viewer") }),
+    );
+    expect(list.status).toBe(200);
+    expect((await list.json()).reports).toEqual([]);
+    expect((await patchNotes(cookieFor("user-viewer"), store.reports[0].id)).status).toBe(403);
+  });
+
+  it("VIEWER (دور غير مخوّل) يعدّل ملاحظات تقرير ⇒ 403", async () => {
+    const store = seededStore();
+    setRepos(createMemoryRepos(store));
+    const res = await patchNotes(cookieFor("user-viewer"), store.reports[0].id, "غير مسموح");
+    expect(res.status).toBe(403);
+    expect(getRepos().reports.getById(store.reports[0].id)?.notes).not.toBe("غير مسموح");
+  });
+
+  it("لا تعديل عبر المستخدمين: عامل على تقرير عامل آخر ⇒ 403 (regression للعقد القائم)", async () => {
+    const store = seededStore();
+    setRepos(createMemoryRepos(store));
+    // report-2 ملك user-coordinator
+    const res = await patchNotes(cookieFor("user-worker"), "report-2", "تعديل عابر");
+    expect(res.status).toBe(403);
+    expect(getRepos().reports.getById("report-2")?.notes).not.toBe("تعديل عابر");
+  });
+});
