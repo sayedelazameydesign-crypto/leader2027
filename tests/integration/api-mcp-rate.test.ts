@@ -27,6 +27,17 @@ afterEach(() => {
 });
 
 describe("مُخدد بوابة الوكلاء", () => {
+  const savedTrust = process.env.L27_TRUST_EDGE;
+  beforeEach(() => {
+    // الإنتاج خلف edge موثوق (Vercel) — الهوية من ترويسة مُنظَّفة.
+    process.env.L27_TRUST_EDGE = "1";
+    resetRateLimits();
+  });
+  afterEach(() => {
+    if (savedTrust === undefined) delete process.env.L27_TRUST_EDGE;
+    else process.env.L27_TRUST_EDGE = savedTrust;
+  });
+
   it("🔴 XFF متغيّر في كل طلب لا يتجاوز الحد — الهوية من الترويسة الموثوقة لا XFF", async () => {
     // كل طلب بترويسة x-forwarded-for مختلفة (يتحكم بها المهاجم) — ولو كانت موثوقة
     // لفتح دلواً جديداً لكل طلب ولما بلغ الحد أبداً. المطلوب: الحد يبقى كما هو.
@@ -38,6 +49,19 @@ describe("مُخدد بوابة الوكلاء", () => {
       if (i < 60) expect(last).toBe(401); // فشل مصادقة — يُستهلك من دلو الفشل
     }
     expect(last).toBe(429); // الـ61 ⇒ دلو الفشل امتلأ رغم تدوير XFF
+  });
+
+  it("🔴 بلا L27_TRUST_EDGE: x-real-ip مُزوّرة لا تفتح دلاء — الجميع في unknown (429 عند الـ61)", async () => {
+    // وضع "الخادم المكشوف" (ALLOWED_HOSTS بلا edge): لا ثقة لأي ترويسة IP —
+    // حتى x-real-ip يكتبها العميل بنفسه. المتمنّع هنا يدور x-real-ip كل طلب:
+    // يجب ألّا يفتح دلوًا جديدًا (كلها unknown مشترك).
+    delete process.env.L27_TRUST_EDGE;
+    let last = 0;
+    for (let i = 0; i < 61; i += 1) {
+      last = (await mcpPost(initReq({ "x-real-ip": `203.0.113.${i}` }))).status;
+      if (i < 60) expect(last).toBe(401);
+    }
+    expect(last).toBe(429); // الدلو المشترك امتلأ — التزوير لم يمنح هوية
   });
 
   it("الهوية الموثوقة (x-real-ip) تفصل الدلاء فعلاً — ضابط إيجابي", async () => {

@@ -43,6 +43,14 @@ describe("سر الجلسة في الإنتاج (VS5/T2)", () => {
     expect(payload?.ep).toBe(2);
   });
 
+  it("الإنتاج بسرّ قصير (<32) يُرفض — لا يكفي أنه ليس الافتراضي", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOW_INSECURE_SECRET", undefined);
+    setEnv("L27_SESSION_SECRET", "real-but-short-secret");
+    expect(() => createSessionToken("user-viewer")).toThrow(/قصير|32/);
+  });
+
   it("الاستثناء الصريح L27_ALLOW_INSECURE_SECRET=1 يسمح (اختبارات إنتاج فقط)", () => {
     setEnv("NODE_ENV", "production");
     setEnv("L27_SESSION_SECRET", undefined);

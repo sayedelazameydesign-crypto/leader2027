@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | Dev server on http://localhost:3000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server on 0.0.0.0:3000 |
-| `npm run test` | 231 unit/integration (166 existing + 65 new — including 8 live against Postgres: storage contract + distributed limiter) |
+| `npm run test` | 235 unit/integration (166 existing + 69 new — including 8 live against Postgres: storage contract + distributed limiter) |
 | `npm run smoke` | 49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway |
 | `npm run typecheck` | TypeScript check, no emit |
 | `npm run readme:generate` | Generate the README from the manifest |
@@ -162,15 +162,15 @@ tests/        unit / integration / smoke
 | `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | Bootstrap owner password — omit it and the seed stays empty (no accounts) |
 | `L27_ALLOWED_HOSTS` | example.com,app.example.com | `—` | Strict host allowlist for the CSRF check — when set, proxy headers are never trusted (direct exposure) |
 | `L27_RATE_BACKEND` | memory | `— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)` | Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters) |
-| `L27_CLIENT_IP_HEADER` | x-real-ip \| cf-connecting-ip \| … | `x-real-ip` | Trusted client-identity header for rate limiting — x-forwarded-for is never read (client-rotatable) |
-| `L27_TRUST_EDGE` | 1 | `—` | Explicit trust in a sanitizing edge (e.g. proxy previews) — alternative: L27_ALLOWED_HOSTS (recommended) |
+| `L27_CLIENT_IP_HEADER` | x-real-ip \| cf-connecting-ip \| … | `x-real-ip` | ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر). |
+| `L27_TRUST_EDGE` | 1 | `—` | edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين). |
 
 ## Quality Gates
 
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **231/231** |
+| `tests` | `npm test` | **235/235** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |

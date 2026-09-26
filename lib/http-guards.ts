@@ -29,12 +29,29 @@ function normalizeHost(value: string): string {
 }
 
 /**
- * هوية العميل للمُخدد — **ترويسة موثوقة واحدة فقط**، لا `x-forwarded-for`
- * أبدًا (أيسر عنصر في قائمتها يتحكم فيه العميل — نفس فئة تجاوز `x-l27-agent`).
- * المصدر: `L27_CLIENT_IP_HEADER` (افتراضي `x-real-ip` — تضعها Vercel مُنظَّفة).
- * غياب الترويسة ⇒ دلو `unknown` مشترك (موثّق) — لا تخمين من XFF إطلاقًا.
+ * هل يوجد **edge موثوق ينظّف الترويسات** أمام الخدمة؟ (`L27_TRUST_EDGE=1`).
+ *
+ * نموذج الثقة — المفتاحان **مستقلَّان** تمامًا، لا يفعّل أحدهما الآخر:
+ * - `L27_TRUST_EDGE=1` ⇒ edge (Vercel / nginx بـREPLACE للترويسة) ينظّف ترويسة
+ *   IP ويفرض سياسة الأصل ⇒ نثق بالترويسة المُنظَّفة. **لا تُفعّله على خادم
+ *   مكشوف مباشرة** — أي عميل عنده يكتب الترويسة بنفسه (تجاوز كامل للمُخدد).
+ * - `L27_ALLOWED_HOSTS` وحده ⇒ سياسة أصل محلية **وبدون أي ثقة بترويسات IP**:
+ *   كل الطلبات إلى دلو `unknown` المشترك (الإزدحام المتبادل موثّق — الفشل
+ *   وحده يُستهلك من دلو الفشل والنجاحات لا تُحجب أبدًا؛ المعالجة: edge مُنظِّف).
+ */
+export function trustedEdge(): boolean {
+  return process.env.L27_TRUST_EDGE === "1";
+}
+
+/**
+ * هوية العميل للمُخدد — **لا تُقرأ أي ترويسة عميل إلا إذا كان هناك edge موثوق
+ * ينظّفها** (`trustedEdge()`)، وحينها المصدر ترويسة واحدة: `L27_CLIENT_IP_HEADER`
+ * (افتراضي `x-real-ip` — تكتبها Vercel مُنظَّفة). `x-forwarded-for` **لا تُقرأ
+ * أبدًا** (أيسر عنصر يتحكم فيه العميل — نفس فئة تجاوز `x-l27-agent` قبل المصادقة).
+ * غياب الترويسة أو غياب `L27_TRUST_EDGE` ⇒ `"unknown"` (دلو مشترك موثّق) — لا تخمين.
  */
 export function clientIp(req: Request): string {
+  if (!trustedEdge()) return "unknown";
   const header = process.env.L27_CLIENT_IP_HEADER ?? "x-real-ip";
   const value = req.headers.get(header)?.split(",")[0]?.trim();
   return value || "unknown";

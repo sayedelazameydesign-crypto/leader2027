@@ -26,16 +26,20 @@ function secret(): string {
   const inProductionBuild = process.env.NEXT_PHASE === "phase-production-build";
   const insecure = !configured || configured === DEV_SECRET;
   const allowInsecure = process.env.L27_ALLOW_INSECURE_SECRET === "1";
-  if (
-    process.env.NODE_ENV === "production" &&
-    !inProductionBuild &&
-    !allowInsecure &&
-    insecure
-  ) {
-    throw new Error(
-      "L27_SESSION_SECRET مطلوب في الإنتاج — الافتراضي غير آمن. " +
-        "اضبط سرًا عشوائيًا (32+ حرفًا) أو استثني صراحةً بـ L27_ALLOW_INSECURE_SECRET=1 (اختبارات فقط).",
-    );
+  if (process.env.NODE_ENV === "production" && !inProductionBuild && !allowInsecure) {
+    if (insecure) {
+      throw new Error(
+        "L27_SESSION_SECRET مطلوب في الإنتاج — الافتراضي غير آمن. " +
+          "اضبط سرًا عشوائيًا (32+ حرفًا) أو استثني صراحةً بـ L27_ALLOW_INSECURE_SECRET=1 (اختبارات فقط).",
+      );
+    }
+    // حد الطول مقصود: الافتراضي المرفوض وحده لا يكفي — سرّ قصير (أو متوقّع)
+    // في الإنتاج مرفوض صراحةً.
+    if ((configured ?? "").length < 32) {
+      throw new Error(
+        "L27_SESSION_SECRET قصير — 32 حرفًا عشوائيًا على الأقل مطلوب في الإنتاج (أقل من ذلك إنتروبيا غير كافية للتوقيع HMAC).",
+      );
+    }
   }
   if (process.env.NODE_ENV === "production" && allowInsecure && insecure) {
     warnOnce("L27_ALLOW_INSECURE_SECRET=1 فعّال في الإنتاج — الجلسات تُوقَّع بسرّ التطوير. لا تستخدمه في نشر حقيقي.");

@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "231/231"
+      "expected": "235/235"
     },
     {
       "id": "build",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "231 unit/integration (166 قائمة + 65 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
-      "en": "231 unit/integration (166 existing + 65 new — including 8 live against Postgres: storage contract + distributed limiter)"
+      "ar": "235 unit/integration (166 قائمة + 69 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
+      "en": "235 unit/integration (166 existing + 69 new — including 8 live against Postgres: storage contract + distributed limiter)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -866,19 +866,15 @@
       "name": "L27_CLIENT_IP_HEADER",
       "default": "x-real-ip",
       "values": "x-real-ip | cf-connecting-ip | …",
-      "note": {
-        "ar": "ترويسة هوية العميل الموثوقة للمُخدد — لا يُقرأ x-forwarded-for إطلاقًا (قابل للتدوير من العميل)",
-        "en": "Trusted client-identity header for rate limiting — x-forwarded-for is never read (client-rotatable)"
-      }
+      "note": "ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر).",
+      "noteEn": "Client-identity header for rate limiting — read only behind L27_TRUST_EDGE=1; x-forwarded-for is never read. Default x-real-ip is correct on Vercel (verified live in deploy)."
     },
     {
       "name": "L27_TRUST_EDGE",
       "default": "—",
       "values": "1",
-      "note": {
-        "ar": "تصريح صريح بحافة مُنظِّفة موثوقة (مثل معاينات الوسيط) — البديل: L27_ALLOWED_HOSTS (موصى به)",
-        "en": "Explicit trust in a sanitizing edge (e.g. proxy previews) — alternative: L27_ALLOWED_HOSTS (recommended)"
-      }
+      "note": "edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين).",
+      "noteEn": "Trusted sanitizing edge (Vercel / nginx REPLACE) — grants IP-header trust and relies on edge origin policy. Independent from L27_ALLOWED_HOSTS (never grants IP trust). Never enable on a directly exposed server. Production needs one of the two."
     }
   ],
   "deploy": {
@@ -1125,5 +1121,14 @@
         "en": "Tool catalogue for agents + the human approval gate."
       }
     }
+  ],
+  "productionChecklist": [
+    "T4-1 التحقق الحيّ من ترويسة Vercel: route تشخيصي مؤقت + curl — هل Vercel تضع x-real-ip مُنظَّفة فعلًا؟ (البديل x-vercel-forwarded-for) ثم احذف الـroute.",
+    "T4-2 إعادة اختبار المُخدد على الرابط الحيّ: 61 طلبًا بترويسات XFF مختلفة ⇒ 429 (اختبار serverless حقيقي).",
+    "T4-3 cold start: انتظر 5 دقائق بلا طلبات ثم 61 طلبًا ⇒ العدّ يستمر (ضمان ensure() للـl27_rate).",
+    "T4-4 L27_RATE_BACKEND=memory يجب أن يكون غائبًا على Vercel (الافتراضي postgres) — التحذير الصاخب قائم في الكود.",
+    "T4-5 Neon pooled DSN بـ -pooler — مع pool.max=5 و connectionTimeoutMillis=1500 وإلا timeouts متكررة.",
+    "T4-6 L27_SESSION_SECRET ≥ 32 حرفًا عشوائيًا — التحقق من الطول في بدء التشغيل قائم (session.ts).",
+    "T4-7 L27_SEED_DEMO_ACCOUNTS=0 (أو غائب) + L27_TRUST_EDGE=1 مقصود لا موروث + L27_ALLOWED_HOSTS=النطاق الحقيقي."
   ]
 }

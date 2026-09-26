@@ -27,6 +27,8 @@ function setEnv(key: string, value: string | undefined) {
 beforeEach(() => {
   setRepos(createMemoryRepos(seededStore()));
   resetRateLimits();
+  // الإنتاج خلف edge موثوق (Vercel) — هوية الـIP من ترويسة مُنظَّفة لا من العميل.
+  setEnv("L27_TRUST_EDGE", "1");
 });
 afterEach(() => {
   setRepos(null);

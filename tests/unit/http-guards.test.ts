@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { assertSameOrigin, clientIp } from "@/lib/http-guards";
+import { assertSameOrigin, clientIp, trustedEdge } from "@/lib/http-guards";
 import {
   MemoryRateLimiter,
   PostgresRateLimiter,
@@ -23,8 +23,20 @@ afterEach(() => {
   for (const k of Object.keys(saved)) delete saved[k];
 });
 
-describe("clientIp — الهوية الموثوقة للمُخدد", () => {
-  it("تقرأ x-real-ip (الافتراضي) — وتتجاهل XFF كليًا", () => {
+describe("clientIp — الهوية الموثوقة خلف L27_TRUST_EDGE", () => {
+  it("بلا TRUST_EDGE ⇒ unknown حتى مع x-real-ip — ALLOWED_HOSTS لا يمنح ثقة IP", () => {
+    setEnv("L27_ALLOWED_HOSTS", "app.example.com"); // سياسة أصل فقط
+    setEnv("L27_TRUST_EDGE", undefined);
+    const r = req("POST", "http://test/api", {
+      "x-real-ip": "203.0.113.50",
+      "x-forwarded-for": "1.2.3.4, 5.6.7.8",
+    });
+    expect(clientIp(r)).toBe("unknown");
+    expect(trustedEdge()).toBe(false);
+  });
+
+  it("TRUST_EDGE=1 ⇒ x-real-ip (الافتراضي) تُقرأ — وXFF تُتجاهل أبدًا", () => {
+    setEnv("L27_TRUST_EDGE", "1");
     const r = req("POST", "http://test/api", {
       "x-real-ip": "203.0.113.50",
       "x-forwarded-for": "1.2.3.4, 5.6.7.8",
@@ -32,18 +44,28 @@ describe("clientIp — الهوية الموثوقة للمُخدد", () => {
     expect(clientIp(r)).toBe("203.0.113.50");
   });
 
-  it("بلا ترويسة موثوقة ⇒ unknown — لا تخمين من XFF أبدًا", () => {
+  it("TRUST_EDGE=1 بلا ترويسة ⇒ unknown — لا تخمين من XFF أبدًا", () => {
+    setEnv("L27_TRUST_EDGE", "1");
     expect(clientIp(req("POST", "http://test/api", { "x-forwarded-for": "9.9.9.9" }))).toBe("unknown");
     expect(clientIp(req("POST", "http://test/api"))).toBe("unknown");
   });
 
-  it("L27_CLIENT_IP_HEADER يغيّر المصدر (ضابط إيجابي)", () => {
+  it("L27_CLIENT_IP_HEADER يغيّر المصدر (ضابط إيجابي — خلف TRUST_EDGE)", () => {
+    setEnv("L27_TRUST_EDGE", "1");
     setEnv("L27_CLIENT_IP_HEADER", "cf-connecting-ip");
     const r = req("POST", "http://test/api", {
       "cf-connecting-ip": "198.51.100.8",
       "x-forwarded-for": "1.1.1.1",
     });
     expect(clientIp(r)).toBe("198.51.100.8");
+  });
+
+  it("الاستقلالية: TRUST_EDGE وحده يمنح الثقة — وغيابه يمنعها ولو وُجدت ALLOWED_HOSTS", () => {
+    setEnv("L27_TRUST_EDGE", "1");
+    expect(clientIp(req("POST", "http://test/api", { "x-real-ip": "203.0.113.9" }))).toBe("203.0.113.9");
+    setEnv("L27_TRUST_EDGE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", "app.example.com");
+    expect(clientIp(req("POST", "http://test/api", { "x-real-ip": "203.0.113.9" }))).toBe("unknown");
   });
 });
 
