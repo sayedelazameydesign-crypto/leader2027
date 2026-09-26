@@ -42,6 +42,7 @@ jobs:
         run: node scripts/t4-verify.mjs "$BASE_URL" --wait-cold "${WAIT_COLD:-0}" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "T4-7 — smoke ضد الرابط الحيّ"
+        if: always()
         env:
           BASE_URL: ${{ inputs.base_url }}
           L27_DEMO_PASSWORD: ${{ secrets.L27_DEMO_PASSWORD }}
@@ -53,6 +54,7 @@ jobs:
           npm run smoke | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: "T4-4/5 — تأكيدات الطرفية (لا أسرار)"
+        if: always()
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_CHECK_ONLY }}
         run: |

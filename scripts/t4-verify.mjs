@@ -19,6 +19,10 @@ function check(name, pass, detail = "") {
   results.push({ name, pass, detail });
   console.log(`${pass ? "PASS" : "FAIL"}  ${name}${detail ? `  [${detail}]` : ""}`);
 }
+function skip(name, detail) {
+  results.push({ name, pass: null, detail });
+  console.log(`SKIP  ${name}  [${detail}]`);
+}
 
 async function main() {
   // 1) إثبات x-real-ip — هل تكتبها الحافة فعلًا ومُنظَّفة؟
@@ -77,15 +81,15 @@ async function main() {
       /Secure/i.test(set) && /HttpOnly/i.test(set) && /SameSite=lax/i.test(set);
     check("T4-6 كوكي الجلسة Secure+HttpOnly+SameSite=lax", ok, set.split(";").map((s) => s.trim().split("=")[0]).join(" | "));
   } else {
-    check("T4-6 كوكي الجلسة (تخطَّ — اضبط L27_T4_LOGIN_EMAIL/PASSWORD)", false, "skipped");
+    skip("T4-6 كوكي الجلسة (اضبط L27_T4_LOGIN_EMAIL/PASSWORD للتشغيل)", "no-credentials");
   }
 
   // 7) smoke 49/49 ضد الحيّ — يُشغَّل من shell بنفس L27_DEMO_PASSWORD للبيئة.
   console.log("\nT4-7: شغّل:  BASE_URL=" + BASE + " L27_DEMO_PASSWORD=$pw npm run smoke");
 
   console.log("\n=== الملخص ===");
-  for (const r of results) console.log(`${r.pass ? "✅" : "❌"} ${r.name}`);
-  process.exit(results.every((r) => r.pass) ? 0 : 1);
+  for (const r of results) console.log(`${r.pass === null ? "➖" : r.pass ? "✅" : "❌"} ${r.name}`);
+  process.exit(results.some((r) => r.pass === false) ? 1 : 0);
 }
 
 main().catch((e) => {
