@@ -108,6 +108,7 @@ npm ci
 | `GET` | `/api/kernel/cells` | Nucleus and tool catalogue for agents |
 | `POST` | `/api/kernel/actions` | Execute a tool / grant or deny an approval |
 | `POST` | `/api/mcp` | Agent Gateway — read-only MCP surface (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — writes rejected pre-execution and audited |
+| `GET` | `/api/debug/headers` | Edge diagnostic route — reflects only 3 IP headers; 404 unless L27_DEBUG_HEADERS=1 (live-verification phase — never enabled in production after T4) |
 
 Every mutation writes an AuditEvent · `password_hash` never appears in any response.
 

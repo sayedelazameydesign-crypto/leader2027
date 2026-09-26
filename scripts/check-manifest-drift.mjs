@@ -134,6 +134,7 @@ try {
     "lib/persistence/seed.ts",
     "lib/http-guards.ts", // L27_ALLOWED_HOSTS
     "lib/rate-limit.ts", // L27_RATE_BACKEND
+    "app/api/debug/headers/route.ts", // T4 — L27_DEBUG_HEADERS (route التشخيص)
     "tests/smoke/smoke.mjs",
     "tests/integration/persistence-contract.test.ts", // VS5/T1 — L27_TEST_DATABASE_URL
   ];

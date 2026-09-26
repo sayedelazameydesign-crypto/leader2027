@@ -108,6 +108,7 @@ npm ci
 | `GET` | `/api/kernel/cells` | كتالوج الأنوية والأدوات للوكلاء |
 | `POST` | `/api/kernel/actions` | تنفيذ أداة / اعتماد أو رفض موافقة |
 | `POST` | `/api/mcp` | بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة |
+| `GET` | `/api/debug/headers` | route تشخيص الحافة — يعكس 3 ترويسات IP فقط؛ 404 إلا مع L27_DEBUG_HEADERS=1 (مرحلة التحقق الحيّ — لا يُفعَّل في الإنتاج بعد T4) |
 
 كل mutation ينشئ AuditEvent · `password_hash` لا يظهر في أي استجابة.
 
