@@ -22,6 +22,14 @@ on:
         required: false
         default: "0"
         type: string
+  # workflow_dispatch يتطلب وجود الملف على الفرع الافتراضي — لهذا يُشغَّل على
+  # push فرع العمل كذلك (الرابط من متغير المستودع T4_BASE_URL — ليس سرًّا).
+  push:
+    branches: [arena/01a0de28-leader2027]
+    paths:
+      - ".github/workflows/t4-verify.yml"
+      - "scripts/t4-verify.mjs"
+      - "tests/smoke/**"
 
 jobs:
   verify:
@@ -35,8 +43,8 @@ jobs:
 
       - name: "T4-1/2/3/6 — إثبات الحافة + XFF + cold-start + الكوكي"
         env:
-          BASE_URL: ${{ inputs.base_url }}
-          WAIT_COLD: ${{ inputs.wait_cold }}
+          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL }}
+          WAIT_COLD: ${{ inputs.wait_cold || '0' }}
           L27_T4_LOGIN_EMAIL: ${{ secrets.L27_T4_LOGIN_EMAIL }}
           L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
         run: node scripts/t4-verify.mjs "$BASE_URL" --wait-cold "${WAIT_COLD:-0}" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -44,7 +52,7 @@ jobs:
       - name: "T4-7 — smoke ضد الرابط الحيّ"
         if: always()
         env:
-          BASE_URL: ${{ inputs.base_url }}
+          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL }}
           L27_DEMO_PASSWORD: ${{ secrets.L27_DEMO_PASSWORD }}
         run: |
           if [ -z "$L27_DEMO_PASSWORD" ]; then
