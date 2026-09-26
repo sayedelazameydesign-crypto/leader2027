@@ -131,6 +131,7 @@ try {
   const codeFiles = [
     "lib/repositories/container.ts",
     "lib/auth/session.ts",
+    "lib/persistence/seed.ts",
     "tests/smoke/smoke.mjs",
     "tests/integration/persistence-contract.test.ts", // VS5/T1 — L27_TEST_DATABASE_URL
   ];

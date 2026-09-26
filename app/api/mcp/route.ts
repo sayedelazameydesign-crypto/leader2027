@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { getRepos } from "@/lib/repositories/container";
 import { isResponse, requireUserForApi } from "@/lib/auth/request";
+import { rateLimit } from "@/lib/http-guards";
 import { handleMcpPayload, resolveSessionId } from "@/lib/mcp/server";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,22 @@ export async function POST(req: Request) {
   const repos = getRepos();
   const user = requireUserForApi(repos, req);
   if (isResponse(user)) return user;
+
+  const sessionId = resolveSessionId(req.headers.get("mcp-session-id"));
+  const agentName = (req.headers.get("x-l27-agent") ?? "").trim().slice(0, 40) || null;
+
+  // مُخدد: 60 طلبًا/دقيقة لكل (وكيل | مستخدم) — كبح للتخمين والإساءة (V5.2+ يُوزَّع).
+  const clientKey = `mcp:${agentName ? `agent:${agentName}` : user.id}`;
+  if (!rateLimit(clientKey, 60, 60_000)) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32029, message: "معدل طلبات مرتفع — أعد المحاولة بعد دقيقة" },
+      },
+      { status: 429, headers: { "Mcp-Session-Id": sessionId } },
+    );
+  }
 
   let payload: unknown;
   try {
@@ -29,16 +46,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const sessionId = resolveSessionId(req.headers.get("mcp-session-id"));
-  const agentName = (req.headers.get("x-l27-agent") ?? "").trim().slice(0, 40) || null;
-
   const body = await handleMcpPayload(payload, {
     repos,
     user: { id: user.id, role: user.role },
     agentName,
     sessionId,
   });
-
   if (body === null) {
     return new NextResponse(null, {
       status: 202,

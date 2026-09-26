@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | Dev server on http://localhost:3000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server on 0.0.0.0:3000 |
-| `npm run test` | 197 unit/integration (98 existing + 68 kernel + 31 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL) |
+| `npm run test` | 214 unit/integration (166 existing + 48 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL) |
 | `npm run smoke` | 49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway |
 | `npm run typecheck` | TypeScript check, no emit |
 | `npm run readme:generate` | Generate the README from the manifest |
@@ -56,7 +56,7 @@ npm ci
 | `worker@leader2027.test` | Field Worker — `FIELD_WORKER` | Field |
 | `viewer@leader2027.test` | Viewer — `VIEWER` | Read-only |
 
-Password for all accounts: `Demo!2345` — demo seed-only operations data, not production credentials.
+Password for all accounts: `Demo!2345` — **demo only**. ⚠️ **Change or delete them before any real deploy**: these accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`).
 
 ## Permission Matrix
 
@@ -157,13 +157,16 @@ tests/        unit / integration / smoke
 | `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2) |
 | `NODE_ENV` | development \| test \| production | `—` | Platform variable — production rejects the default session secret (VS5/T2) |
 | `NEXT_PHASE` | phase-production-build | `—` | Set by Next.js — exempt during the build phase (no session signing in build) |
+| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | Explicit opt-in for demo-account seeding — production never seeds them without 1 (VS5/T3) |
+| `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | Bootstrap owner email for production — created once at first seed |
+| `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | Bootstrap owner password — omit it and the seed stays empty (no accounts) |
 
 ## Quality Gates
 
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **197/197** |
+| `tests` | `npm test` | **214/214** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |

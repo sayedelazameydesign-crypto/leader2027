@@ -9,8 +9,19 @@ import { emptyStore, type Store } from "@/lib/persistence/memory";
  * بيانات تشغيلية تجريبية (seed-only) — مستخدم لكل دور بحسب مصفوفة الصلاحيات.
  * كلمات المرور هنا للتشغيل/الاختبار فقط وليست بيانات إنتاجية.
  * معرّفات ثابتة عمداً ليتمكن smoke/CI من الإشارة إليها.
+ *
+ * ⚠️ عزل الحسابات (VS5/T3): حسابات `@leader2027.test` **للعرض فقط** — لا تُزرَع
+ * في الإنتاج إطلاقًا ما لم يُصرَّح `L27_SEED_DEMO_ACCOUNTS=1` صراحةً. الإنتاج
+ * الفارغ يبدأ بحساب مالك واحد من `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو يدويًا.
  */
 export const SEED_PASSWORD = "Demo!2345";
+
+/** حسابات العرض مسموحة؟ التطوير/الاختبار نعم افتراضيًا — الإنتاج لا. */
+export function demoAccountsAllowed(): boolean {
+  const flag = process.env.L27_SEED_DEMO_ACCOUNTS;
+  if (flag !== undefined) return flag === "1";
+  return process.env.NODE_ENV !== "production";
+}
 
 const now = new Date().toISOString();
 
@@ -33,6 +44,7 @@ export const SEED = {
     { id: "team-a", name: "الفريق الميداني أ", region_id: "region-giza" },
     { id: "team-b", name: "الفريق الميداني ب", region_id: "region-haram" },
   ],
+  // ⚠️ حسابات العرض — لا تُزرَع في الإنتاج (انظر demoAccountsAllowed).
   users: [
     { id: "user-owner", email: "owner@leader2027.test", name: "مالك الحملة", role: "OWNER", team_id: null, region_id: null },
     { id: "user-admin", email: "admin@leader2027.test", name: "مدير النظام", role: "CAMPAIGN_ADMIN", team_id: null, region_id: null },
@@ -91,15 +103,19 @@ export function seededStore(): Store {
 
   store.regions = SEED.regions.map((r): Region => ({ ...r }));
   store.teams = SEED.teams.map((t): Team => ({ ...t }));
-  store.users = SEED.users.map(
-    (u): User => ({
-      ...u,
-      role: u.role as User["role"],
-      password_hash: hashPassword(SEED_PASSWORD),
-      session_epoch: 0,
-      created_at: now,
-    }),
-  );
+  // عزل الحسابات: العرض فقط عند السماح — والإنتاج يبدأ بمالك bootstrap أو فارغًا.
+  store.users = demoAccountsAllowed()
+    ? SEED.users.map(
+        (u): User => ({
+          ...u,
+          role: u.role as User["role"],
+          password_hash: hashPassword(SEED_PASSWORD),
+          session_epoch: 0,
+          created_at: now,
+        }),
+      )
+    : [];
+  applyBootstrapOwner(store);
   store.people = SEED.people.map(
     (p): Person => ({ ...p, created_at: now, updated_at: now }),
   );
@@ -138,6 +154,28 @@ export function seededStore(): Store {
 export function applySeed(repos: Repos): void {
   // للتوافق: تُستعمل seededStore مباشرةً في المحوّلين.
   void repos;
+}
+
+/**
+ * مالك البداية للإنتاج — يُنشأ فقط عند ضبط `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD`
+ * معًا. البديل: تشغيل ببيئة عرض (`L27_SEED_DEMO_ACCOUNTS=1`) أو إدخال المستخدمين يدويًا.
+ */
+function applyBootstrapOwner(store: Store): void {
+  const email = (process.env.L27_BOOTSTRAP_OWNER_EMAIL ?? "").trim().toLowerCase();
+  const password = process.env.L27_BOOTSTRAP_OWNER_PASSWORD ?? "";
+  if (!email || password.length < 8) return;
+  if (store.users.some((u) => u.email === email)) return;
+  store.users.push({
+    id: "user-bootstrap-owner",
+    email,
+    name: "المالك (bootstrap)",
+    role: "OWNER",
+    team_id: null,
+    region_id: null,
+    password_hash: hashPassword(password),
+    session_epoch: 0,
+    created_at: now,
+  });
 }
 
 /** اسم مختصر للتوافق مع container. */

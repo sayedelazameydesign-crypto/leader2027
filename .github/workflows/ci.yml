@@ -41,6 +41,8 @@ jobs:
         env:
           # VS5/T2 — الإنتاج يرفض السر الافتراضي؛ الدورة تضبط سرًا صراحةً.
           L27_SESSION_SECRET: ci-smoke-session-secret-please-rotate
+          # VS5/T3 — حسابات العرض تُصرَّح صراحةً في بيئات الـsmoke فقط.
+          L27_SEED_DEMO_ACCOUNTS: "1"
       # ---------------------------------------------------------------------
       # الوثائق تأتي بعد نجاح البناء والاختبارات — وفشلها لا يُفشل الـbuild.
       # (انظر docs/readme-generation.md: OK ⇒ تحديث README · FAIL ⇒ Warning only)

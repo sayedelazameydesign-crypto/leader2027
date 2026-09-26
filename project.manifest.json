@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "197/197"
+      "expected": "214/214"
     },
     {
       "id": "build",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "197 unit/integration (98 قائمة + 68 للنواة + 31 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL)",
-      "en": "197 unit/integration (98 existing + 68 kernel + 31 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL)"
+      "ar": "214 unit/integration (166 قائمة + 48 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL)",
+      "en": "214 unit/integration (166 existing + 48 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -636,8 +636,8 @@
     ]
   },
   "accountsNote": {
-    "ar": "كلمة المرور للكل: `Demo!2345` — بيانات تشغيلية تجريبية (seed-only) وليست إنتاجية.",
-    "en": "Password for all accounts: `Demo!2345` — demo seed-only operations data, not production credentials."
+    "ar": "كلمة المرور للكل: `Demo!2345` — **للعرض فقط**. ⚠️ **غيّرها أو احذفها قبل أي نشر**: هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).",
+    "en": "Password for all accounts: `Demo!2345` — **demo only**. ⚠️ **Change or delete them before any real deploy**: these accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`)."
   },
   "sessionRules": {
     "ar": [
@@ -815,6 +815,33 @@
       "note": {
         "ar": "داخل Next.js — يُعفى أثناء دورة البناء (لا توقيع جلسات في build)",
         "en": "Set by Next.js — exempt during the build phase (no session signing in build)"
+      }
+    },
+    {
+      "name": "L27_SEED_DEMO_ACCOUNTS",
+      "default": "— (التطوير/الاختبار: 1 · الإنتاج: 0)",
+      "values": "0 | 1",
+      "note": {
+        "ar": "تصريح صريح لبذر حسابات العرض — الإنتاج لا يزرعها إطلاقًا بلا 1 (VS5/T3)",
+        "en": "Explicit opt-in for demo-account seeding — production never seeds them without 1 (VS5/T3)"
+      }
+    },
+    {
+      "name": "L27_BOOTSTRAP_OWNER_EMAIL",
+      "default": "—",
+      "values": "email",
+      "note": {
+        "ar": "بريد مالك البداية للإنتاج — يُنشأ مرة واحدة عند أول بذر",
+        "en": "Bootstrap owner email for production — created once at first seed"
+      }
+    },
+    {
+      "name": "L27_BOOTSTRAP_OWNER_PASSWORD",
+      "default": "—",
+      "values": "secret (≥8)",
+      "note": {
+        "ar": "كلمة مرور مالك البداية — تجاهلها = بذر فارغ (لا حسابات)",
+        "en": "Bootstrap owner password — omit it and the seed stays empty (no accounts)"
       }
     }
   ],

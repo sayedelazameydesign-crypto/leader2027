@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 197 unit/integration (98 قائمة + 68 للنواة + 31 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL) |
+| `npm run test` | 214 unit/integration (166 قائمة + 48 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL) |
 | `npm run smoke` | 49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
@@ -56,7 +56,7 @@ npm ci
 | `worker@leader2027.test` | عامل ميداني — `FIELD_WORKER` | ميداني |
 | `viewer@leader2027.test` | مُطلع — `VIEWER` | قراءة فقط |
 
-كلمة المرور للكل: `Demo!2345` — بيانات تشغيلية تجريبية (seed-only) وليست إنتاجية.
+كلمة المرور للكل: `Demo!2345` — **للعرض فقط**. ⚠️ **غيّرها أو احذفها قبل أي نشر**: هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).
 
 ## مصفوفة الصلاحيات
 
@@ -157,13 +157,16 @@ tests/        unit / integration / smoke
 | `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | استثناء صريح للاختبارات الإنتاجية وحدها — الإنتاج يرفض السر الافتراضي (VS5/T2) |
 | `NODE_ENV` | development \| test \| production | `—` | متغير المنصّة — الإنتاج يرفض سر الجلسة الافتراضي (VS5/T2) |
 | `NEXT_PHASE` | phase-production-build | `—` | داخل Next.js — يُعفى أثناء دورة البناء (لا توقيع جلسات في build) |
+| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | تصريح صريح لبذر حسابات العرض — الإنتاج لا يزرعها إطلاقًا بلا 1 (VS5/T3) |
+| `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | بريد مالك البداية للإنتاج — يُنشأ مرة واحدة عند أول بذر |
+| `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | كلمة مرور مالك البداية — تجاهلها = بذر فارغ (لا حسابات) |
 
 ## بوابات الجودة
 
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **197/197** |
+| `tests` | `npm test` | **214/214** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |
