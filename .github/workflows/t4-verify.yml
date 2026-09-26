@@ -44,7 +44,7 @@ jobs:
       - name: "T4-1/2/3/6 — إثبات الحافة + XFF + cold-start + الكوكي"
         env:
           BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-19f4sdope-celia-fashions-projects.vercel.app' }}
-          WAIT_COLD: ${{ inputs.wait_cold || '0' }}
+          WAIT_COLD: ${{ inputs.wait_cold || '5' }}
           L27_T4_LOGIN_EMAIL: ${{ secrets.L27_T4_LOGIN_EMAIL }}
           L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
         run: node scripts/t4-verify.mjs "$BASE_URL" --wait-cold "${WAIT_COLD:-0}" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -59,13 +59,20 @@ jobs:
             echo "T4-7: L27_DEMO_PASSWORD غير مضبوط في أسرار Actions — أضفه وأعد التشغيل" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          npm run smoke | tee -a "$GITHUB_STEP_SUMMARY"
+          npm run smoke | tee /tmp/smoke-out.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=T4-7 smoke::$(grep -a 'SMOKE RESULT' /tmp/smoke-out.txt | tail -1)"
 
       - name: "T4-4/5 — تأكيدات الطرفية (لا أسرار)"
         if: always()
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_CHECK_ONLY }}
+          L27_T4_LOGIN_EMAIL: ${{ secrets.L27_T4_LOGIN_EMAIL }}
+          L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
+          L27_DEMO_PASSWORD: ${{ secrets.L27_DEMO_PASSWORD }}
         run: |
+          for v in L27_T4_LOGIN_EMAIL L27_T4_LOGIN_PASSWORD L27_DEMO_PASSWORD DATABASE_URL_CHECK_ONLY; do
+            if [ -n "${!v}" ]; then echo "::notice title=secrets::$v = present"; else echo "::notice title=secrets::$v = absent"; fi
+          done
           echo "T4-4: L27_RATE_BACKEND=memory يجب ألّا يكون في env النشر (تحقق من لوحة Vercel)" >> "$GITHUB_STEP_SUMMARY"
           if [ -n "$DATABASE_URL" ]; then
             case "$DATABASE_URL" in
