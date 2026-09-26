@@ -16,6 +16,13 @@ export type Action =
   | "settings:manage"
   | "audit:view";
 
+/**
+ * عقد الممثل — قرار المراجعة **D-01 = OPTION B** (`docs/audit/pr8-review-followup.md`):
+ * `role` هو مفتاح قرار التفويض (مصفوفة §4 + منع افتراضي لدور مجهول)، أمّا `id` فليس
+ * شرطًا عامًا — يُشترط فقط حيث تتطلب القاعدة هوية/ملكية (اليوم: ملكية
+ * `reports:update_notes` للعامل الميداني). لا validation عام لـ`id` هنا، ولا عزل فرق:
+ * `team_id` مُعلَن ولا يدخل في `can()` (F-02 — قرار مؤجل).
+ */
 export type Actor = {
   id: string;
   role: Role;

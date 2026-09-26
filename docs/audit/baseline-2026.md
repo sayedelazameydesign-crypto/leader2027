@@ -195,7 +195,7 @@
 
 | # | النتيجة | التصنيف | الدليل | المرحلة |
 | --- | --- | --- | --- | --- |
-| **F‑01** | `can()` **fail-open بالتكوين** لـ`reports:update_notes` عندما `resource.reported_by === undefined`: الشرط `policy.ts:74-80` يُتخطى فيُعاد `true` (`:82`). غير قابل للوصول اليوم عبر المسارات المُنمَّذجة (نقطة التفويض الوحيدة `service.ts:85` تمرر `existing.reported_by` ونوعه `string` إلزامي في `field-report.ts:10`)، **لكن** التخزين مستند JSONB واحد بلا قيود ولا تحقق عند القراءة (`schema.sql:3-8`, `postgres.ts:64-66`) ⇒ سجل ناقص الحقل يمنح أي FIELD_WORKER. **لا اختبار يغطي فرع `undefined`** (`policy.test.ts:66-68` يغطي القيم المعرّفة فقط) | NOT_VERIFIED — SECURITY REVIEW REQUIRED | `policy.ts:70-83` · `service.ts:85` · `field-report.ts:10` · `schema.sql:3-8` | 2 → 4 |
+| **F‑01** | `can()` **fail-open بالتكوين** لـ`reports:update_notes` عندما `resource.reported_by === undefined`: الشرط `policy.ts:74-80` يُتخطى فيُعاد `true` (`:82`). غير قابل للوصول اليوم عبر المسارات المُنمَّذجة (نقطة التفويض الوحيدة `service.ts:85` تمرر `existing.reported_by` ونوعه `string` إلزامي في `field-report.ts:10`)، **لكن** التخزين مستند JSONB واحد بلا قيود ولا تحقق عند القراءة (`schema.sql:3-8`, `postgres.ts:64-66`) ⇒ سجل ناقص الحقل يمنح أي FIELD_WORKER. **لا اختبار يغطي فرع `undefined`** (`policy.test.ts:66-68` يغطي القيم المعرّفة فقط). **متابعة PR #8:** قُسّمت إلى **F‑01a** (fail‑open الملكية) و**F‑01b** (`TypeError` لدور باسم من `Object.prototype` ⇒ 500 بدل 403) — الإصلاح في `570376c` (`policy.ts` + `tests/unit/policy-matrix.test.ts` + `tests/integration/api-field-reports.test.ts`)، وقرار عقد الممثل **D‑01 = OPTION B** موثّق في `docs/audit/pr8-review-followup.md` | NOT_VERIFIED — SECURITY REVIEW REQUIRED (على main) → **بعد PR #8: F‑01a/F‑01b VERIFIED** (اختبارات + CI `verify` SUCCESS — بانتظار الدمج) | `policy.ts:70-83` · `service.ts:85` · `field-report.ts:10` · `schema.sql:3-8` · PR #8 `570376c` | 2 → 4 |
 | **F‑02** | `Resource.team_id` مُعلَن ولا يُستخدم في `can()`؛ `listReports` يعيد **كل** التقارير لكل من يملك `reports:view` (بما فيه FIELD_WORKER). لا ادعاء موثّق بحصر فريقي في الـmanifest/الوثائق (grep فارغ) ⇒ ليس خرق عقد موثّق، بل حقل غير مُنفَّذ يحتاج قرارًا: تنفيذ أو حذف | KNOWN (سلوك) / UNKNOWN (المقصود) | `policy.ts:22,27` · `service.ts:102-108` | 4 |
 | **F‑03** | 3 متغيرات بيئة مستخدمة وغير مُعلَنة: `BASE_URL` (smoke) · `L27_T4_LOGIN_EMAIL` · `L27_T4_LOGIN_PASSWORD` (t4‑verify). السبب: كاشف الانحراف يمسح قائمة ملفات مثبّتة لا المستودع كله | KNOWN | مسح شامل مقابل `manifest.env` · `check-manifest-drift.mjs:131-146` | 13/15 |
 | **F‑04** | `.env.example` يغطي 3 من 17 متغيرًا موثّقًا؛ و`structure["app/api/"]` لا يذكر `kernel`/`mcp`/`debug` | KNOWN | `grep -o "^[A-Z_0-9]*" .env.example` · `manifest.structure` | 15 |
@@ -214,6 +214,7 @@
 | **F‑17** | dead files / dead routes / circular imports / duplicate logic / orphan components / unused deps | UNKNOWN | لم يُفحص | 1 |
 | **F‑18** | عقد كل endpoint (مخطط طلب/استجابة، أكواد الحالة، 4xx≠5xx، side effects، idempotency) غير مُعلَن ولا مُختبر منهجيًا | UNKNOWN | — | 6 |
 | **F‑19** | حالات الفشل (قاعدة بيانات غير متاحة، DSN خاطئ، متجر تالف، env ناقص) — بعضها مغطى جزئيًا (`session-secret`, `postgres-adapter`) ولا يوجد اختبار فشل شامل | UNKNOWN | — | 12 |
+| **F‑20** | `recordAudit()` يكتب `actor_id: actor.id` **بلا تحقق** (`lib/audit/audit.ts:15-16`؛ `append` يدمج الحدث كما هو `lib/persistence/memory.ts:223-226`؛ `actor_id: string` نوع فقط `interfaces.ts:41`). بموجب D‑01 (OPTION B) لا يُتحقق من `actor.id` عمومًا في `can()`، فممثل بدور صالح وهوية غائبة/تالفة يمكنه نظريًا تنفيذ طفرة **وتُسجَّل بلا فاعل** — خرق محتمل لـ«كل طفرة ⇒ حدث تدقيق **بفاعل صحيح**» (contract‑vs3 AC 9). الوصولية: عبر HTTP الفاعل هو `User` من المخزن (نفس نموذج تهديد F‑01a: JSONB بلا قيود)؛ عبر النواة `effectiveActor.id = decidedBy ?? actor.id` (`kernel.ts:630`). **لا اختبار يثبت الثابت**. **خارج نطاق PR #8** (تفويض لا تدقيق) — يُعالَج مع F‑15 كثابت تدقيق | NOT_VERIFIED | `audit.ts:15-16` · `memory.ts:223-226` · `interfaces.ts:41` · `kernel.ts:629-632` · `docs/audit/pr8-review-followup.md` | 14 |
 
 ---
 
@@ -221,7 +222,7 @@
 
 **REMAINING_UNKNOWN:** F‑17 (السلامة البنيوية: dead code/duplicates/circular) · F‑18 (عقود الـendpoints) · F‑19 (هندسة الفشل) · المقصود من `Resource.team_id` (F‑02) · عمق تغطية اختبارات العبث بالجلسة.
 
-**NOT_VERIFIED:** F‑01 (فرع fail‑open) · F‑09 محليًا (تكافؤ المحوّلات) · F‑10 (التزامن/الفقد التحديثي) · F‑13 (التحقق الحيّ) · F‑14 كـinvariant · F‑15 كـinvariant · المصفوفة الشاملة role×action×resource · انتهاء صلاحية الاعتماد وربط الممثل تحت السباق.
+**NOT_VERIFIED:** F‑01 (فرع fail‑open — على main؛ F‑01a/F‑01b مُصلَحان في PR #8 بانتظار الدمج) · F‑20 (سلامة `actor_id` في التدقيق — Phase 14) · F‑09 محليًا (تكافؤ المحوّلات) · F‑10 (التزامن/الفقد التحديثي) · F‑13 (التحقق الحيّ) · F‑14 كـinvariant · F‑15 كـinvariant · المصفوفة الشاملة role×action×resource · انتهاء صلاحية الاعتماد وربط الممثل تحت السباق.
 
 **NOT_PRESENT:** lint · format · E2E/Playwright · coverage · CodeQL · Dependabot · Scorecard · `vercel.json` · `Dockerfile` · `.nvmrc` · `engines` · اختبارات property/concurrency · `middleware.ts`.
 
