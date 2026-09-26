@@ -176,6 +176,41 @@ try {
     }
   }
 
+  /* ---- قواعد معمارية: عزل الأنوية الذرية ---- */
+  const cellsDir = join(ROOT, "lib", "cells");
+  if (existsSync(cellsDir)) {
+    const cellIds = readdirSync(cellsDir).filter((d) => statSync(join(cellsDir, d)).isDirectory());
+    const declaredCells = (manifest.cells ?? []).map((c) => c.id);
+    compare("الأنوية الذرية (lib/cells)", declaredCells, [...cellIds].sort());
+
+    // القاعدة 1: لا استيراد بين الأنوية — لا قيمةً ولا نوعًا
+    const violations = [];
+    for (const id of cellIds) {
+      const file = join(cellsDir, id, "index.ts");
+      if (!existsSync(file)) continue;
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(/from\s+"@\/lib\/cells\/([a-z0-9-]+)/g)) {
+        if (m[1] !== id) violations.push(`${id} → ${m[1]}`);
+      }
+    }
+    if (violations.length) warn(`استيراد بين الأنوية (ممنوع): [${violations.join(", ")}]`);
+    else ok(`عزل الأنوية: لا استيراد بين نواة وأخرى (${cellIds.length} نواة)`);
+
+    // القاعدة 2: لا وصول مباشر للنواة أو لجذر التركيب من داخل نواة
+    const runtimeViolations = [];
+    for (const id of cellIds) {
+      const file = join(cellsDir, id, "index.ts");
+      if (!existsSync(file)) continue;
+      const src = readFileSync(file, "utf8");
+      for (const bad of ["@/lib/kernel/kernel", "@/lib/kernel/registry", "@/lib/persistence", "@//lib/repositories"]) {
+        if (src.includes(bad)) runtimeViolations.push(`${id} → ${bad}`);
+      }
+      // الوصول للمخزن يجب أن يمرّ من الجسر وحده
+    }
+    if (runtimeViolations.length) warn(`وصول مباشر من نواة إلى النواة/المخزن: [${runtimeViolations.join(", ")}]`);
+    else ok("حدود الوصول: الأنوية لا تلمس النواة ولا المخزن مباشرة");
+  }
+
   /* ---- ملفات الوثائق ---- */
   const missingDocs = (manifest.docs ?? []).filter((d) => !existsSync(join(ROOT, d.path))).map((d) => d.path);
   if (missingDocs.length) warn(`ملفات وثائق مُشار إليها وغير موجودة: [${missingDocs.join(", ")}]`);

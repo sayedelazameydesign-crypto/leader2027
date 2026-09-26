@@ -9,13 +9,14 @@
 
 ## Status
 
-**VS3** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — all gates green**.
+**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green**.
 
 | Slice | Description | State | Evidence |
 | --- | --- | --- | --- |
 | **VS1** | Foundation | Merged | `PR #1` |
 | **VS2** | People + Volunteers + Field Reports | Merged | `PR #1` |
 | **VS3** | Administrative Campaign Core | Implemented | `docs/contract-vs3.md` |
+| **VS4** | Live Kernel + Atomic Nuclei | Implemented | `docs/kernel.md` |
 
 ## Binding Principles
 
@@ -23,6 +24,7 @@
 - **No button-hiding as authorization:** permissions are enforced server-side (policy + service + API); hiding UI is a UX nicety only.
 - **Contract before code:** every slice is locked by a contract (`docs/contract-*.md`) before a single line of implementation.
 - **No claim without evidence:** every accepted criterion has an evidence artifact (test / smoke check / log).
+- **Isolation before intelligence:** every AI capability passes an audited human-approval gate, with no cross-nucleus imports.
 
 ## Running
 
@@ -35,8 +37,8 @@ npm ci
 | `npm run dev` | Dev server on http://localhost:3000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server on 0.0.0.0:3000 |
-| `npm run test` | 98 unit/integration tests |
-| `npm run smoke` | 31 production checks against a running server (`BASE_URL` optional) |
+| `npm run test` | 166 unit/integration (98 existing + 68 kernel) |
+| `npm run smoke` | 45 production checks against a running server (`BASE_URL` optional) |
 | `npm run typecheck` | TypeScript check, no emit |
 | `npm run readme:generate` | Generate the README from the manifest |
 | `npm run readme:check` | Detect README drift from the manifest |
@@ -101,6 +103,9 @@ Password for all accounts: `Demo!2345` — demo seed-only operations data, not p
 | `GET/POST` | `/api/teams` | Teams |
 | `GET/POST` | `/api/users` | Users (users:manage) |
 | `PATCH` | `/api/users/:id` | Name/role/team/region — email and password are immutable in v1 |
+| `GET/PATCH` | `/api/kernel` | Live nuclei snapshot / tune a nucleus (settings:manage) |
+| `GET` | `/api/kernel/cells` | Nucleus and tool catalogue for agents |
+| `POST` | `/api/kernel/actions` | Execute a tool / grant or deny an approval |
 
 Every mutation writes an AuditEvent · `password_hash` never appears in any response.
 
@@ -109,6 +114,7 @@ Every mutation writes an AuditEvent · `password_hash` never appears in any resp
 - `/` dashboard · `/people` + `/people/[id]` · `/volunteers` + `/volunteers/[id]`
 - `/field/reports` + `/field/reports/new` + `/field/reports/[id]` · `/login`
 - `/admin` (campaign/cycles/regions/teams) · `/admin/users` — all behind the auth boundary
+- `/kernel` — the live kernel: corners, their knobs, and the human approval queue
 
 ## Structure
 
@@ -125,6 +131,8 @@ tests/        unit / integration / smoke
 | --- | --- |
 | `app/(app)/` | Dashboard, people, volunteers, reports, admin — behind the auth boundary |
 | `app/login/` | Sign-in |
+| `lib/kernel/` | The kernel: contracts, manifest, bus, approvals, kernel, composition root |
+| `lib/cells/` | The eight atomic nuclei — one per corner, isolated and independent |
 | `app/api/` | people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health |
 | `lib/domain/` | Entity rules + services — people/volunteers/field/stats/dashboard/settings/users |
 | `lib/repositories/` | Store interfaces (Domain → Repository Interface → Persistence Adapter) |
@@ -147,9 +155,9 @@ tests/        unit / integration / smoke
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **98/98** |
+| `tests` | `npm test` | **166/166** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **31/31** |
+| `smoke` | `npm run smoke` | **45/45** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -177,6 +185,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/plan-vs3.md`](docs/plan-vs3.md) | VS3 plan as implemented |
 | [`docs/sync-verification.md`](docs/sync-verification.md) | Sync verification record |
 | [`docs/readme-generation.md`](docs/readme-generation.md) | How this file is generated |
+| [`docs/kernel.md`](docs/kernel.md) | Live kernel & atomic nuclei architecture |
 
 ## Explicitly Out of Scope
 

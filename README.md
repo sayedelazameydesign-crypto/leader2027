@@ -9,13 +9,14 @@
 
 ## الحالة
 
-**VS3** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء**.
+**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء**.
 
 | الشريحة | الوصف | الحالة | الدليل |
 | --- | --- | --- | --- |
 | **VS1** | الأساس | مدموج | `PR #1` |
 | **VS2** | أشخاص + متطوعون + تقارير ميدانية | مدموج | `PR #1` |
 | **VS3** | نواة الحملة الإدارية | منفَّذ | `docs/contract-vs3.md` |
+| **VS4** | النواة الحيّة + الأنوية الذرية | منفَّذ | `docs/kernel.md` |
 
 ## المبادئ الملزمة
 
@@ -23,6 +24,7 @@
 - **بلا إخفاء أزرار كـauthorization:** الصلاحيات تُفرض على الخادم (policy + service + API)، وإخفاء الـUI تحسين تجربة فقط.
 - **العقد قبل الكود:** كل شريحة تُقفل بعقد (`docs/contract-*.md`) قبل سطر تنفيذ واحد.
 - **لا ادعاء بلا إثبات:** كل بند مقبول له ملف دليل (اختبار/فحص smoke/سجل).
+- **العزل قبل الذكاء:** كل قدرة ذكاء اصطناعي تمرّ ببوابة موافقة بشرية مُدقَّقة، وبلا استيراد بين الأنوية.
 
 ## التشغيل
 
@@ -35,8 +37,8 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 98 unit/integration |
-| `npm run smoke` | 31 فحص production ضد خادم قائم (`BASE_URL` اختياري) |
+| `npm run test` | 166 unit/integration (98 قائمة + 68 للنواة) |
+| `npm run smoke` | 45 فحص production ضد خادم قائم (`BASE_URL` اختياري) |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
 | `npm run readme:check` | كشف انحراف README عن الـmanifest |
@@ -101,6 +103,9 @@ npm ci
 | `GET/POST` | `/api/teams` | الفرق |
 | `GET/POST` | `/api/users` | المستخدمون (users:manage) |
 | `PATCH` | `/api/users/:id` | اسم/دور/فريق/منطقة — البريد وكلمة المرور غير قابلين للتعديل في v1 |
+| `GET/PATCH` | `/api/kernel` | الصورة الحيّة للأنوية / تعديل مَقابض نواة (settings:manage) |
+| `GET` | `/api/kernel/cells` | كتالوج الأنوية والأدوات للوكلاء |
+| `POST` | `/api/kernel/actions` | تنفيذ أداة / اعتماد أو رفض موافقة |
 
 كل mutation ينشئ AuditEvent · `password_hash` لا يظهر في أي استجابة.
 
@@ -109,6 +114,7 @@ npm ci
 - `/` لوحة القيادة · `/people` + `/people/[id]` · `/volunteers` + `/volunteers/[id]`
 - `/field/reports` + `/field/reports/new` + `/field/reports/[id]` · `/login`
 - `/admin` (الحملة/الدورات/المناطق/الفرق) · `/admin/users` — كلها خلف حدود المصادقة
+- `/kernel` — النواة الحيّة: الأركان، مَقابضها، وطابور الموافقات البشرية
 
 ## البنية
 
@@ -125,6 +131,8 @@ tests/        unit / integration / smoke
 | --- | --- |
 | `app/(app)/` | لوحة قيادة، أشخاص، متطوعون، تقارير، إدارة — خلف حدود المصادقة |
 | `app/login/` | الدخول |
+| `lib/kernel/` | النواة: العقود، الـmanifest، الناقل، الموافقات، النواة، جذر التركيب |
+| `lib/cells/` | الأنوية الذرية الثمانية — ركن لكل نواة، معزولة ومستقلة |
 | `app/api/` | people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health |
 | `lib/domain/` | قواعد الكيانات + services — people/volunteers/field/stats/dashboard/settings/users |
 | `lib/repositories/` | واجهات المخزن (Domain → Repository Interface → Persistence Adapter) |
@@ -147,9 +155,9 @@ tests/        unit / integration / smoke
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **98/98** |
+| `tests` | `npm test` | **166/166** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **31/31** |
+| `smoke` | `npm run smoke` | **45/45** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI يشغّل هذه البوابات كلها على كل push/PR — انظر [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -177,6 +185,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/plan-vs3.md`](docs/plan-vs3.md) | خطة VS3 كما نُفِّذت |
 | [`docs/sync-verification.md`](docs/sync-verification.md) | توثيق التحقق من المزامنة |
 | [`docs/readme-generation.md`](docs/readme-generation.md) | كيف يُولَّد هذا الملف |
+| [`docs/kernel.md`](docs/kernel.md) | معمارية النواة الحيّة والأنوية الذرية |
 
 ## خارج النطاق (صراحة)
 
