@@ -619,6 +619,14 @@
         "ar": "بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة",
         "en": "Agent Gateway — read-only MCP surface (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — writes rejected pre-execution and audited"
       }
+    },
+    {
+      "method": "GET",
+      "path": "/api/debug/headers",
+      "note": {
+        "ar": "route تشخيص الحافة — يعكس 3 ترويسات IP فقط؛ 404 إلا مع L27_DEBUG_HEADERS=1 (مرحلة التحقق الحيّ — لا يُفعَّل في الإنتاج بعد T4)",
+        "en": "Edge diagnostic route — reflects only 3 IP headers; 404 unless L27_DEBUG_HEADERS=1 (live-verification phase — never enabled in production after T4)"
+      }
     }
   ],
   "screens": {
