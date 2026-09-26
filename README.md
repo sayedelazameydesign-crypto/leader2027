@@ -188,6 +188,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/readme-generation.md`](docs/readme-generation.md) | كيف يُولَّد هذا الملف |
 | [`docs/kernel.md`](docs/kernel.md) | معمارية النواة الحيّة والأنوية الذرية |
 | [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة) |
+| [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية |
 
 ## خارج النطاق (صراحة)
 

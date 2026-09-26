@@ -188,6 +188,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/readme-generation.md`](docs/readme-generation.md) | How this file is generated |
 | [`docs/kernel.md`](docs/kernel.md) | Live kernel & atomic nuclei architecture |
 | [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | Done/remaining roadmap toward a free, cardless deploy |
+| [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | Idea: Trusted Agent Computer — beating Manus on trust, not autonomy |
 
 ## Explicitly Out of Scope
 

@@ -822,6 +822,13 @@
         "ar": "مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة)",
         "en": "Done/remaining roadmap toward a free, cardless deploy"
       }
+    },
+    {
+      "path": "docs/idea-trusted-agent-computer.md",
+      "label": {
+        "ar": "فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية",
+        "en": "Idea: Trusted Agent Computer — beating Manus on trust, not autonomy"
+      }
     }
   ],
   "outOfScope": {
