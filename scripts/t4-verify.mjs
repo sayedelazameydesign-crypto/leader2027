@@ -16,8 +16,9 @@ const waitMin = waitIdx > 0 ? Number(process.argv[waitIdx + 1]) : 0;
 
 const results = [];
 function notice(name, status, detail) {
-  // تعليق مُثبَّت على الـcheck-run — يُقرأ عبر api.github.com (سجلات الـrunner محجوبة هنا).
-  console.log(`::notice title=${name}::${status} ${detail}`.slice(0, 600));
+  // تعليق على الـcheck-run — يُقرأ عبر api.github.com (سجلات الـrunner محجوبة هنا).
+  // العنوان ASCII فقط (عناوين بحروف أخرى يُسقطها محلّل الأوامر بصمت).
+  console.log(`::notice title=${status}::${name} — ${detail}`.slice(0, 600));
 }
 function check(name, pass, detail = "") {
   results.push({ name, pass, detail });
