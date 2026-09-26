@@ -5,25 +5,38 @@
  *   - `MemoryRateLimiter` — نافذة منزلقة في الذاكرة: التطوير والاختبار (وكبح محلي).
  *   - `PostgresRateLimiter` — عدّاد نافذة ثابتة في `l27_rate`: **الإنتاج الموزَّع** —
  *     يعمل على Vercel serverless لأن الحالة في القاعدة لا في ذاكرة الحالة.
- *     (الرد على مراجعة ما قبل النشر: مُخدد الذاكرة يبدأ من صفر مع كل cold start.)
  *   - `RedisRateLimiter` لاحقًا = تنفيذ جديد للواجهة نفسها — بلا لمس login/mcp.
  *
  * الاختيار التلقائي: `L27_STORE=postgres` + `DATABASE_URL` ⇒ الموزَّع، وإلا الذاكرة.
+ * `L27_RATE_BACKEND=memory` إلحاح صريح — يُحذَّر منه في الإنتاج (انظر warnOnce).
+ *
  * سلوك الفشل: **fail-open** (القاعدة معطوبة ⇒ سماح + لا حظر) — المُخدد كبح
- * إساءة لا حصن مصادقة؛ إغلاق الحملة ليوم بسبب hiccup أسوأ من رفع الحد مؤقتًا.
+ * إساءة لا حصن مصادقة. لهذا فإن التزاحم فوق سعة الاتصالات **عدو** المُخدد:
+ * الاتصالات مُعدَّلة (pool.max=5 + مهلة قصيرة) حتى لا يتكدس الانتظار ثم يذوب
+ * في fail-open تحت الحمل. مع Neon استعمل رابط `-pooler` الموزَّع.
  */
 import { Pool } from "pg";
 
 export interface RateLimiter {
   /** true = مسموح · false = تجاوز الحد داخل النافذة. */
-  check(key: string, limit: number, windowMs: number): Promise<boolean> | boolean;
+  check(key: string, limit: number, windowMs: number): Promise<boolean>;
+}
+
+function warnOnceFactory(): (msg: string) => void {
+  let warned = false;
+  return (msg: string) => {
+    if (!warned) {
+      console.warn(`⚠️ ${msg}`);
+      warned = true;
+    }
+  };
 }
 
 /** نافذة منزلقة في الذاكرة — التطوير/الاختبار. */
 export class MemoryRateLimiter implements RateLimiter {
   private buckets = new Map<string, number[]>();
 
-  check(key: string, limit: number, windowMs: number, now = Date.now()): boolean {
+  async check(key: string, limit: number, windowMs: number, now = Date.now()): Promise<boolean> {
     const bucket = this.buckets.get(key) ?? [];
     const cutoff = now - windowMs;
     const recent = bucket.filter((t) => t > cutoff);
@@ -43,19 +56,50 @@ export class MemoryRateLimiter implements RateLimiter {
 
 /**
  * عدّاد نافذة ثابتة مشترك عبر PostgreSQL — الإنتاج (Neon/Supabase).
- * UPSERT ذرّي واحد لكل طلب؛ التنظيف الفرصة يحذف النوافذ المنتهية.
+ * UPSERT ذرّي واحد لكل طلب؛ التنظيف الفرصة يحذف النوافذ المنتهية
+ * عبر الفهرس `l27_rate_window_start_idx`.
  */
 export class PostgresRateLimiter implements RateLimiter {
   private pool: Pool;
   private calls = 0;
+  private ensured: Promise<void> | null = null;
 
   constructor(dsn: string) {
-    this.pool = new Pool({ connectionString: dsn, max: 1, connectionTimeoutMillis: 3_000 });
+    // max>1 ضروري: مزامنة كل الطلبات عبر اتصال واحد = تزاحم ⇒ timeout ⇒ fail-open
+    // ⇒ المُخدد يذوب تحت الحمل بالضبط حين يُحتاج. المهلة قصيرة لتفضّل الرفض السريع.
+    this.pool = new Pool({ connectionString: dsn, max: 5, connectionTimeoutMillis: 1_500 });
+  }
+
+  /**
+   * يضمن مخططه بنفسه — المُخدد يعمل قبل أي `getRepos()` (طلب مبكر على قاعدة باردة)،
+   * والاعتماد على محوّل التخزين لإنشاء الجدول = فشل صامت في fail-open (كشفه اختبار حيّ).
+   * عند فشل الضمان تُمحى المحاولة ليُعاد الطلب في الاستدعاء التالي.
+   */
+  private ensure(): Promise<void> {
+    if (!this.ensured) {
+      this.ensured = (async () => {
+        await this.pool.query(
+          `CREATE TABLE IF NOT EXISTS l27_rate (
+             bucket_key   TEXT PRIMARY KEY,
+             window_start BIGINT NOT NULL,
+             count        BIGINT NOT NULL
+           )`,
+        );
+        await this.pool.query(
+          "CREATE INDEX IF NOT EXISTS l27_rate_window_start_idx ON l27_rate (window_start)",
+        );
+      })().catch((err) => {
+        this.ensured = null;
+        throw err;
+      });
+    }
+    return this.ensured;
   }
 
   async check(key: string, limit: number, windowMs: number): Promise<boolean> {
     const windowStart = Math.floor(Date.now() / windowMs) * windowMs;
     try {
+      await this.ensure();
       const res = await this.pool.query(
         `INSERT INTO l27_rate (bucket_key, window_start, count)
          VALUES ($1, $2, 1)
@@ -83,11 +127,19 @@ export class PostgresRateLimiter implements RateLimiter {
 }
 
 const memoryLimiter = new MemoryRateLimiter();
+const warnOnce = warnOnceFactory();
 let sharedPostgres: PostgresRateLimiter | null = null;
 
 export function getRateLimiter(): RateLimiter {
-  if (process.env.L27_RATE_BACKEND === "memory") return memoryLimiter;
   const dsn = process.env.DATABASE_URL ?? "";
+  if (process.env.L27_RATE_BACKEND === "memory") {
+    if (process.env.NODE_ENV === "production") {
+      warnOnce(
+        "L27_RATE_BACKEND=memory فعّال في الإنتاج — المُخدد محلي لكل حالة (يبدأ من صفر مع cold start). استعمله للتجربة فقط.",
+      );
+    }
+    return memoryLimiter;
+  }
   if (process.env.L27_STORE === "postgres" && dsn) {
     if (!sharedPostgres) sharedPostgres = new PostgresRateLimiter(dsn);
     return sharedPostgres;

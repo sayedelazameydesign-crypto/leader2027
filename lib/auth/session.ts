@@ -6,25 +6,42 @@ const TTL_MS = 12 * 3600 * 1000;
 
 type Payload = { uid: string; exp: number; ep: number };
 
+let warned = false;
+function warnOnce(message: string): void {
+  if (!warned) {
+    console.warn(`⚠️ ${message}`);
+    warned = true;
+  }
+}
+
 /**
  * سرّ التوقيع — VS5/T2: الإنتاج **يرفض** السر الافتراضي إطلاقًا.
  * التطوير والاختبار يبقيان على الافتراضي (بلا احتكاك)، والاستثناء الصريح
- * للاختبارات الإنتاجية وحدها: `L27_ALLOW_INSECURE_SECRET=1`.
- * دورة البناء (`NEXT_PHASE`) معفاة — لا توقيع جلسات يحدث أثناء `next build`.
+ * للاختبارات الإنتاجية وحدها: `L27_ALLOW_INSECURE_SECRET=1` (يُحذَّر منه في الإنتاج).
+ * دورة البناء (`NEXT_PHASE`) معفاة — لا توقيع جلسات يحدث أثناء `next build`،
+ * وإن حدث استثناءً فيُحذَّر منه مرة واحدة (لا توقيع صامت بسرّ التطوير).
  */
 function secret(): string {
   const configured = process.env.L27_SESSION_SECRET;
   const inProductionBuild = process.env.NEXT_PHASE === "phase-production-build";
+  const insecure = !configured || configured === DEV_SECRET;
+  const allowInsecure = process.env.L27_ALLOW_INSECURE_SECRET === "1";
   if (
     process.env.NODE_ENV === "production" &&
     !inProductionBuild &&
-    process.env.L27_ALLOW_INSECURE_SECRET !== "1" &&
-    (!configured || configured === DEV_SECRET)
+    !allowInsecure &&
+    insecure
   ) {
     throw new Error(
       "L27_SESSION_SECRET مطلوب في الإنتاج — الافتراضي غير آمن. " +
         "اضبط سرًا عشوائيًا (32+ حرفًا) أو استثني صراحةً بـ L27_ALLOW_INSECURE_SECRET=1 (اختبارات فقط).",
     );
+  }
+  if (process.env.NODE_ENV === "production" && allowInsecure && insecure) {
+    warnOnce("L27_ALLOW_INSECURE_SECRET=1 فعّال في الإنتاج — الجلسات تُوقَّع بسرّ التطوير. لا تستخدمه في نشر حقيقي.");
+  }
+  if (process.env.NODE_ENV === "production" && inProductionBuild && insecure) {
+    warnOnce("توقيع جلسة أثناء دورة البناء بسرّ التطوير (NEXT_PHASE) — لا تُصدِّر هذا التوكن.");
   }
   return configured ?? DEV_SECRET;
 }

@@ -57,6 +57,7 @@ function ensureSchema(dsn: string): void {
     [],
     dsn,
   );
+  syncQuery("CREATE INDEX IF NOT EXISTS l27_rate_window_start_idx ON l27_rate (window_start)", [], dsn);
 }
 
 function load(dsn: string): Store | null {

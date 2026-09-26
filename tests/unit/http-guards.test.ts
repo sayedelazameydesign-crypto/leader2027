@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertSameOrigin } from "@/lib/http-guards";
 import {
   MemoryRateLimiter,
@@ -9,6 +9,10 @@ import {
 function req(method: string, url: string, headers: Record<string, string> = {}) {
   return new Request(url, { method, headers });
 }
+
+afterEach(() => {
+  delete process.env.L27_ALLOWED_HOSTS;
+});
 
 describe("فحص الأصل (CSRF defense-in-depth)", () => {
   it("POST بلا Origin ⇒ مقبول (غير المتصفح — curl/اختبارات)", () => {
@@ -24,6 +28,48 @@ describe("فحص الأصل (CSRF defense-in-depth)", () => {
         req("POST", "http://internal:3000/api/people", {
           origin: "https://preview.e2b.app",
           "x-forwarded-host": "preview.e2b.app",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("البند 3: التطبيع — منفذ افتراضي وحالة أحرف لا تُسبب 403 كاذبًا", () => {
+    // المتصفح يُسقط :443 من Origin بينما قد تحمل Host/XFH إياها
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://example.com",
+          "x-forwarded-host": "example.com:443",
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://Example.COM",
+          "x-forwarded-host": "example.com",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("البند 4: L27_ALLOWED_HOSTS صارمة — تجاهل ترويسات البروكسي المزوَّرة", () => {
+    process.env.L27_ALLOWED_HOSTS = "app.example.com";
+    // مهاجم يزوّر XFH — والقائمة الصارمة لا تقرؤه أصلًا
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://evil.com",
+          "x-forwarded-host": "evil.com",
+        }),
+      )?.status,
+    ).toBe(403);
+    // المضيف المسموح يعمل — حتى لو جاء عبر بروكسي
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://app.example.com",
+          "x-forwarded-host": "evil.com",
         }),
       ),
     ).toBeNull();
@@ -48,22 +94,22 @@ describe("فحص الأصل (CSRF defense-in-depth)", () => {
 describe("محدد المعدل — الذاكرة (نافذة منزلقة)", () => {
   beforeEach(() => resetRateLimits());
 
-  it("يسمح حتى الحد ثم يرفض — وتنفتح النافذة مجددًا بالزمن", () => {
+  it("يسمح حتى الحد ثم يرفض — وتنفتح النافذة مجددًا بالزمن", async () => {
     const limiter = new MemoryRateLimiter();
     const t0 = 1_000_000;
     for (let i = 0; i < 5; i += 1) {
-      expect(limiter.check("k1", 5, 1_000, t0 + i)).toBe(true);
+      expect(await limiter.check("k1", 5, 1_000, t0 + i)).toBe(true);
     }
-    expect(limiter.check("k1", 5, 1_000, t0 + 10)).toBe(false);
+    expect(await limiter.check("k1", 5, 1_000, t0 + 10)).toBe(false);
     // بعد انتهاء النافذة يُسمح مجددًا
-    expect(limiter.check("k1", 5, 1_000, t0 + 2_000)).toBe(true);
+    expect(await limiter.check("k1", 5, 1_000, t0 + 2_000)).toBe(true);
   });
 
-  it("مفاتيح معزولة — مفتاح واحد لا يُنهك غيره", () => {
+  it("مفاتيح معزولة — مفتاح واحد لا يُنهك غيره", async () => {
     const limiter = new MemoryRateLimiter();
-    expect(limiter.check("a", 1, 1_000, 0)).toBe(true);
-    expect(limiter.check("a", 1, 1_000, 0)).toBe(false);
-    expect(limiter.check("b", 1, 1_000, 0)).toBe(true);
+    expect(await limiter.check("a", 1, 1_000, 0)).toBe(true);
+    expect(await limiter.check("a", 1, 1_000, 0)).toBe(false);
+    expect(await limiter.check("b", 1, 1_000, 0)).toBe(true);
   });
 });
 
@@ -76,12 +122,14 @@ describe.skipIf(!pgUrl)("محدد المعدل — Postgres موزَّع (حيّ
     const a = new PostgresRateLimiter(pgUrl!);
     const b = new PostgresRateLimiter(pgUrl!);
     const key = `rate-live-${Date.now()}`;
+    // نافذة 5 دقائق تُبعد احتمال حدّة النافذة الثابتة أثناء الاختبار (سلوك موثّق).
+    const windowMs = 300_000;
     // المثيل أ يستهلك الحدّ كله
     for (let i = 0; i < 3; i += 1) {
-      expect(await a.check(key, 3, 60_000)).toBe(true);
+      expect(await a.check(key, 3, windowMs)).toBe(true);
     }
     // المثيل ب (cold start جديد) يرى الحالة كما هي ⇒ يرفض فورًا
-    expect(await b.check(key, 3, 60_000)).toBe(false);
+    expect(await b.check(key, 3, windowMs)).toBe(false);
   });
 
   it("فشل القاعدة ⇒ fail-open (سماح) — لا إغلاق للحملة", async () => {

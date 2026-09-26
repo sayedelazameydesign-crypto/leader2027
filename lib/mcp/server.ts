@@ -101,6 +101,10 @@ export async function handleMcpPayload(
   ctx: McpContext,
 ): Promise<unknown | null> {
   if (Array.isArray(payload)) {
+    // سقف الدفعة: طلب واحد لا يُنفِّذ عدداً غير محدود من الاستدعاءات (مراجعة ما قبل النشر).
+    if (payload.length > 20) {
+      return error(null, -32600, "دفعة JSON-RPC تتجاوز 20 عنصرًا — مرفوضة");
+    }
     const responses = [];
     for (const item of payload) {
       const res = await handleOne(item, ctx);

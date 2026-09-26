@@ -90,4 +90,15 @@ describe("mcp: الدوال النقية (VS5/V5.1)", () => {
     const resUnknown = await handleMcpPayload({ jsonrpc: "2.0", method: "nope" }, ctx());
     expect(resUnknown).toBeNull();
   });
+
+  it("البند 6: دفعة JSON-RPC فوق 20 عنصرًا ⇒ مرفوضة (-32600)", async () => {
+    const big = Array.from({ length: 21 }, (_, i) => ({ jsonrpc: "2.0", id: i, method: "ping" }));
+    const res = (await handleMcpPayload(big, ctx())) as { error: { code: number } };
+    expect(res.error.code).toBe(-32600);
+
+    // دفعة ضمن السقف تُعالج عاديًا
+    const small = [{ jsonrpc: "2.0", id: 1, method: "ping" }];
+    const ok = (await handleMcpPayload(small, ctx())) as Array<{ result: unknown }>;
+    expect(ok).toHaveLength(1);
+  });
 });

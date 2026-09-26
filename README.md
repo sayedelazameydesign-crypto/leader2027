@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 214 unit/integration (166 قائمة + 48 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL) |
+| `npm run test` | 223 unit/integration (166 قائمة + 57 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع) |
 | `npm run smoke` | 49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
@@ -160,13 +160,15 @@ tests/        unit / integration / smoke
 | `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | تصريح صريح لبذر حسابات العرض — الإنتاج لا يزرعها إطلاقًا بلا 1 (VS5/T3) |
 | `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | بريد مالك البداية للإنتاج — يُنشأ مرة واحدة عند أول بذر |
 | `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | كلمة مرور مالك البداية — تجاهلها = بذر فارغ (لا حسابات) |
+| `L27_ALLOWED_HOSTS` | example.com,app.example.com | `—` | قائمة مضيفين صارمة لفحص CSRF — عند ضبطها لا تُقرأ ترويسات البروكسي إطلاقًا (التعريض المباشر) |
+| `L27_RATE_BACKEND` | memory | `— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)` | إلحاح صريح لخلفية المُخدد المحلي — يُحذَّر منه في الإنتاج (cold start يفرّغ العدّاد) |
 
 ## بوابات الجودة
 
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **214/214** |
+| `tests` | `npm test` | **223/223** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |

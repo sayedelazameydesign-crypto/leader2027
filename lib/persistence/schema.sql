@@ -13,3 +13,4 @@ CREATE TABLE IF NOT EXISTS l27_rate (
   window_start BIGINT NOT NULL,
   count        BIGINT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS l27_rate_window_start_idx ON l27_rate (window_start);

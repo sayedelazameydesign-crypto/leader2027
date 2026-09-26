@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | Dev server on http://localhost:3000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server on 0.0.0.0:3000 |
-| `npm run test` | 214 unit/integration (166 existing + 48 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL) |
+| `npm run test` | 223 unit/integration (166 existing + 57 new — including 8 live against Postgres: storage contract + distributed limiter) |
 | `npm run smoke` | 49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway |
 | `npm run typecheck` | TypeScript check, no emit |
 | `npm run readme:generate` | Generate the README from the manifest |
@@ -160,13 +160,15 @@ tests/        unit / integration / smoke
 | `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | Explicit opt-in for demo-account seeding — production never seeds them without 1 (VS5/T3) |
 | `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | Bootstrap owner email for production — created once at first seed |
 | `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | Bootstrap owner password — omit it and the seed stays empty (no accounts) |
+| `L27_ALLOWED_HOSTS` | example.com,app.example.com | `—` | Strict host allowlist for the CSRF check — when set, proxy headers are never trusted (direct exposure) |
+| `L27_RATE_BACKEND` | memory | `— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)` | Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters) |
 
 ## Quality Gates
 
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **214/214** |
+| `tests` | `npm test` | **223/223** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |
