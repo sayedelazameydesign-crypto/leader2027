@@ -56,7 +56,7 @@ npm ci
 | `worker@leader2027.test` | Field Worker — `FIELD_WORKER` | Field |
 | `viewer@leader2027.test` | Viewer — `VIEWER` | Read-only |
 
-Password for all accounts: `Demo!2345` — **demo only**. ⚠️ **Change or delete them before any real deploy**: these accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`).
+**No fixed password in the repo** (the previous one was published and burned — fully removed). Demo password is per-environment via `L27_DEMO_PASSWORD` (declared by smoke/CI/preview); absent ⇒ random per seed run. These accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`).
 
 ## Permission Matrix
 
@@ -157,13 +157,14 @@ tests/        unit / integration / smoke
 | `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2) |
 | `NODE_ENV` | development \| test \| production | `—` | Platform variable — production rejects the default session secret (VS5/T2) |
 | `NEXT_PHASE` | phase-production-build | `—` | Set by Next.js — exempt during the build phase (no session signing in build) |
-| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | Explicit opt-in for demo-account seeding — production never seeds them without 1 (VS5/T3) |
+| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | يصرّح بذر حسابات العرض — ومعها L27_DEMO_PASSWORD لكل بيئة (لا قيمة ثابتة في المستودع). |
 | `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | Bootstrap owner email for production — created once at first seed |
 | `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | Bootstrap owner password — omit it and the seed stays empty (no accounts) |
 | `L27_ALLOWED_HOSTS` | example.com,app.example.com | `—` | Strict host allowlist for the CSRF check — when set, proxy headers are never trusted (direct exposure) |
 | `L27_RATE_BACKEND` | memory | `— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)` | Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters) |
 | `L27_CLIENT_IP_HEADER` | x-real-ip \| cf-connecting-ip \| … | `x-real-ip` | ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر). |
 | `L27_TRUST_EDGE` | 1 | `—` | edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين). |
+| `L27_DEMO_PASSWORD` | — | `` | القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا. |
 
 ## Quality Gates
 

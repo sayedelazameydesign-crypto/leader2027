@@ -24,7 +24,11 @@ function setEnv(key: string, value: string | undefined) {
   else process.env[key] = value;
 }
 
+// كلمة مرور عرض لكل عملية — لا قيمة ثابتة في المستودع (السابقة احتُرقت وشُلت).
+const PW = "fixture-auth-hardening-only-7Jz";
+
 beforeEach(() => {
+  process.env.L27_DEMO_PASSWORD = PW;
   setRepos(createMemoryRepos(seededStore()));
   resetRateLimits();
   // الإنتاج خلف edge موثوق (Vercel) — هوية الـIP من ترويسة مُنظَّفة لا من العميل.
@@ -42,7 +46,7 @@ describe("أمن الدخول والكوكي (مراجعة ما قبل النش�
     setEnv("NODE_ENV", "production");
     setEnv("L27_ALLOW_INSECURE_SECRET", "1");
     setEnv("L27_TRUST_EDGE", "1"); // سياسة الأصل إلزامية في الإنتاج (البند ج)
-    const res = await loginPost(loginReq("viewer@leader2027.test", "Demo!2345"));
+    const res = await loginPost(loginReq("viewer@leader2027.test", PW));
     expect(res.status).toBe(200);
     const cookie = res.headers.get("set-cookie") ?? "";
     expect(cookie).toMatch(/HttpOnly/i);
@@ -53,7 +57,7 @@ describe("أمن الدخول والكوكي (مراجعة ما قبل النش�
 
   it("التطوير بلا Secure (http محلي يعمل) — وبقية الأعلام باقية", async () => {
     setEnv("NODE_ENV", "development");
-    const res = await loginPost(loginReq("viewer@leader2027.test", "Demo!2345"));
+    const res = await loginPost(loginReq("viewer@leader2027.test", PW));
     const cookie = res.headers.get("set-cookie") ?? "";
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).not.toMatch(/Secure/i);
@@ -61,7 +65,7 @@ describe("أمن الدخول والكوكي (مراجعة ما قبل النش�
 
   it("CSRF: POST من Origin أجنبي ⇒ 403 على login وعلى API", async () => {
     const evil = { origin: "https://evil.example" };
-    const login = await loginPost(loginReq("viewer@leader2027.test", "Demo!2345", evil));
+    const login = await loginPost(loginReq("viewer@leader2027.test", PW, evil));
     expect(login.status).toBe(403);
 
     const create = await peoplePost(

@@ -636,8 +636,8 @@
     ]
   },
   "accountsNote": {
-    "ar": "كلمة المرور للكل: `Demo!2345` — **للعرض فقط**. ⚠️ **غيّرها أو احذفها قبل أي نشر**: هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).",
-    "en": "Password for all accounts: `Demo!2345` — **demo only**. ⚠️ **Change or delete them before any real deploy**: these accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`)."
+    "ar": "**لا كلمة مرور ثابتة في المستودع** (السابقة نُشرت علنًا واحتُرقت — شُلت بالكامل). كلمة مرور العرض لكل بيئة عبر `L27_DEMO_PASSWORD` (smoke/CI/معاينة تصرّحه)، وغيابها ⇒ عشوائية لكل عملية بذر. ⚠️ هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).",
+    "en": "**No fixed password in the repo** (the previous one was published and burned — fully removed). Demo password is per-environment via `L27_DEMO_PASSWORD` (declared by smoke/CI/preview); absent ⇒ random per seed run. These accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`)."
   },
   "sessionRules": {
     "ar": [
@@ -821,10 +821,8 @@
       "name": "L27_SEED_DEMO_ACCOUNTS",
       "default": "— (التطوير/الاختبار: 1 · الإنتاج: 0)",
       "values": "0 | 1",
-      "note": {
-        "ar": "تصريح صريح لبذر حسابات العرض — الإنتاج لا يزرعها إطلاقًا بلا 1 (VS5/T3)",
-        "en": "Explicit opt-in for demo-account seeding — production never seeds them without 1 (VS5/T3)"
-      }
+      "note": "يصرّح بذر حسابات العرض — ومعها L27_DEMO_PASSWORD لكل بيئة (لا قيمة ثابتة في المستودع).",
+      "noteEn": "Enables demo-account seeding — with per-environment L27_DEMO_PASSWORD (no fixed value in the repo)."
     },
     {
       "name": "L27_BOOTSTRAP_OWNER_EMAIL",
@@ -875,6 +873,15 @@
       "values": "1",
       "note": "edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين).",
       "noteEn": "Trusted sanitizing edge (Vercel / nginx REPLACE) — grants IP-header trust and relies on edge origin policy. Independent from L27_ALLOWED_HOSTS (never grants IP trust). Never enable on a directly exposed server. Production needs one of the two."
+    },
+    {
+      "name": "L27_DEMO_PASSWORD",
+      "description": "كلمة مرور حسابات العرض لكل بيئة — تُصرَّح في smoke/CI/المعاينة؛ لا قيمة افتراضية (غيابها ⇒ عشوائية غير معلنة).",
+      "descriptionEn": "Per-environment demo-account password — declared in smoke/CI/preview; no default (absent ⇒ random, never logged).",
+      "default": "",
+      "required": false,
+      "note": "القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا.",
+      "noteEn": "The previous value is burned and removed — never reuse a published password."
     }
   ],
   "deploy": {

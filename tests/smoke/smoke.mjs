@@ -7,6 +7,13 @@
  * — انظر .env.example.
  */
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
+// لا كلمات مرور ثابتة في المستودع — الـsmoke يدخل بكلمة مرور بيئته المُصرَّح بها
+// (نفس قيمة L27_DEMO_PASSWORD التي أُشغِّل بها الخادم المُختبَر).
+const DEMO_PASSWORD = process.env.L27_DEMO_PASSWORD;
+if (!DEMO_PASSWORD) {
+  console.error("L27_DEMO_PASSWORD مطلوب — شغّل الخادم والـsmoke بنفس القيمة (لا قيمة ثابتة في المستودع).");
+  process.exit(1);
+}
 const results = [];
 
 function check(name, pass, detail = "") {
@@ -40,7 +47,7 @@ async function login(email) {
   const res = await fetch(BASE + "/api/auth/login", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "Demo!2345" }),
+    body: JSON.stringify({ email, password: DEMO_PASSWORD }),
   });
   if (!res.ok) throw new Error(`login failed: ${email} → ${res.status}`);
   const raw = res.headers.get("set-cookie") ?? "";
@@ -278,7 +285,7 @@ async function main() {
       }, newUserCookie);
       const { res: r2 } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مس", email: `intruder-${ts}@leader2027.test`, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مس", email: `intruder-${ts}@leader2027.test`, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, newUserCookie);
       check("VS3-7: Coordinator → 403 على settings وusers", r1.status === 403 && r2.status === 403, `settings=${r1.status} users=${r2.status}`);
     }
@@ -293,7 +300,7 @@ async function main() {
       }, viewer);
       const { res: u } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مس", email: `intruder3-${ts}@leader2027.test`, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مس", email: `intruder3-${ts}@leader2027.test`, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, viewer);
       check("VS3-8: دون settings/users:manage → 403 على campaign/users (بند 21)",
         c.status === 403 && u.status === 403, `campaign=${c.status} users=${u.status}`);
@@ -369,7 +376,7 @@ async function main() {
       }, owner);
       const { res: dup } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مكرر", email: newUserEmail, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مكرر", email: newUserEmail, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, owner);
       check("VS3-12: تاريخ فاسد → 400 + بريد مكرر → 409", bad.status === 400 && dup.status === 409, `bad=${bad.status} dup=${dup.status}`);
     }
