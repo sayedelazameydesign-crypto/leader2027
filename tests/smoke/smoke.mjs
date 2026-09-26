@@ -372,6 +372,223 @@ async function main() {
     }
   }
 
+  // ==========================================================================
+  // VS4 — النواة الحيّة والأنوية الذرية: إثبات production على خادم حقيقي
+  // ==========================================================================
+
+  const ts = Date.now().toString().slice(-8);
+  const owner = await login("owner@leader2027.test");
+
+  // K1: الصورة الحيّة — كل الأركان مُركَّبة ونشطة
+  let kernelSnapshot = null;
+  {
+    const { res, text } = await req("/api/kernel", {}, owner);
+    kernelSnapshot = res.ok ? JSON.parse(text) : null;
+    const ok =
+      res.status === 200 &&
+      kernelSnapshot?.stats?.total === 8 &&
+      kernelSnapshot?.stats?.active === 8 &&
+      kernelSnapshot?.stats?.blocked === 0;
+    check(
+      "K1: /api/kernel — 8 أنوية كلها نشطة",
+      ok,
+      `status=${res.status} total=${kernelSnapshot?.stats?.total} active=${kernelSnapshot?.stats?.active}`,
+    );
+  }
+
+  // K2: كل قدرة مُشبَعة لها جهة مُعلَنة
+  {
+    const caps = kernelSnapshot?.capabilities ?? [];
+    const ok = caps.length >= 15 && caps.every((c) => c.providedBy && c.id.includes("."));
+    check("K2: القدرات المُشبَعة (>=15) كلها مُنسوبة لجهة", ok, `capabilities=${caps.length}`);
+  }
+
+  // K3: تعديل مَقبض في ركن واحد — والركن الآخر لا يتأثر
+  {
+    const before = kernelSnapshot?.cells?.find((c) => c.id === "people")?.config?.list_limit;
+    const otherBefore = kernelSnapshot?.cells?.find((c) => c.id === "field")?.config?.max_people_contacted;
+    const { res } = await req("/api/kernel", {
+      method: "PATCH",
+      body: JSON.stringify({ cell: "people", patch: { list_limit: 42 } }),
+    }, owner);
+    const { text } = await req("/api/kernel", {}, owner);
+    const after = JSON.parse(text);
+    const peopleLimit = after.cells.find((c) => c.id === "people")?.config?.list_limit;
+    const fieldValue = after.cells.find((c) => c.id === "field")?.config?.max_people_contacted;
+    check(
+      "K3: مَقبض ركن واحد تغيّر وحده (people.list_limit=42)",
+      res.status === 200 && peopleLimit === 42 && fieldValue === otherBefore && before !== 42,
+      `people=${peopleLimit} field=${fieldValue}`,
+    );
+    // إعادة الضبط
+    await req("/api/kernel", { method: "PATCH", body: JSON.stringify({ cell: "people", patch: { list_limit: before } }) }, owner);
+  }
+
+  // K4: مَقبض غير مُعلَن يُرفض — لا تعديل من خارج العقد
+  {
+    const { res } = await req("/api/kernel", {
+      method: "PATCH",
+      body: JSON.stringify({ cell: "people", patch: { backdoor: true } }),
+    }, owner);
+    check("K4: مَقبض غير مُعلَن → 400 (عقد الأنوية محصَّن)", res.status === 400, `status=${res.status}`);
+  }
+
+  // K5: المتصفح بلا صلاحية لا يعدّل مَقابض الأنوية
+  {
+    const { res } = await req("/api/kernel", {
+      method: "PATCH",
+      body: JSON.stringify({ cell: "people", patch: { list_limit: 5 } }),
+    }, viewer);
+    check("K5: Viewer على PATCH /api/kernel → 403", res.status === 403, `status=${res.status}`);
+  }
+
+  // K6: كتالوج الوكلاء يصف الأدوات ومستوى خطورتها
+  {
+    const { res, text } = await req("/api/kernel/cells", {}, owner);
+    const data = res.ok ? JSON.parse(text) : null;
+    const createTool = data?.tools?.find((t) => t.name === "people.create");
+    const ok = data?.count >= 20 && createTool?.risk === "write" && createTool?.requiresApprovalForAgents === true;
+    check("K6: كتالوج الوكلاء — أدوات الكتابة تتطلب موافقة", ok, `tools=${data?.count} create=${createTool?.risk}`);
+  }
+
+  // K7: وكيل يطلب كتابة ⇒ معلَّق بلا تنفيذ (بوابة 2025/2027)
+  let kernelApprovalId = "";
+  {
+    const { res, text } = await req("/api/kernel/actions", {
+      method: "POST",
+      headers: { "x-l27-agent": "smoke-bot" },
+      body: JSON.stringify({
+        action: "tool",
+        tool: "people.create",
+        input: { full_name: `اسم وكيل ${ts}`, phone: "01099999999", region_id: "region-giza" },
+      }),
+    }, owner);
+    const data = JSON.parse(text);
+    kernelApprovalId = data.approvalId ?? "";
+    check(
+      "K7: وكيل + أداة كتابة ⇒ pending_approval (لا تنفيذ)",
+      res.status === 202 && data.status === "pending_approval" && kernelApprovalId.startsWith("apr-"),
+      `status=${res.status} approval=${kernelApprovalId}`,
+    );
+  }
+
+  // K8: الطلب المعلَّق يظهر في صورة النواة
+  {
+    const { text } = await req("/api/kernel", {}, owner);
+    const pending = JSON.parse(text)?.approvals?.pending ?? 0;
+    check("K8: الطلب المعلَّق ظاهر في /api/kernel", pending >= 1, `pending=${pending}`);
+  }
+
+  // K9: غير المُخوَّل لا يعتمد الموافقات
+  {
+    const { res } = await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "grant", approval_id: kernelApprovalId }),
+    }, viewer);
+    check("K9: Viewer يعتمد موافقة → 403", res.status === 403, `status=${res.status}`);
+  }
+
+  // K10: الاعتماد البشري ثم التنفيذ بسلطة المُعتمِد (تفويض لا تصعيد)
+  {
+    const { res: grant, text: grantText } = await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "grant", approval_id: kernelApprovalId, note: "اعتماد smoke" }),
+    }, owner);
+    const granted = JSON.parse(grantText)?.approval;
+    const { res: run, text: runText } = await req("/api/kernel/actions", {
+      method: "POST",
+      headers: { "x-l27-agent": "smoke-bot" },
+      body: JSON.stringify({
+        action: "tool",
+        tool: "people.create",
+        input: { full_name: `اسم وكيل مُعتمد ${ts}`, phone: "01099999998", region_id: "region-giza" },
+        approval_id: kernelApprovalId,
+      }),
+    }, owner);
+    const ran = JSON.parse(runText);
+    check(
+      "K10: اعتماد بشري ⇒ الوكيل ينفّذ بسلطة المُعتمِد",
+      grant.status === 200 && granted?.state === "granted" && grant.status === 200 && run.status === 200 && ran.status === "ok",
+      `grant=${granted?.state} run=${ran.status}`,
+    );
+  }
+
+  // K11: التصريح لاستخدام واحد فقط
+  {
+    const { text } = await req("/api/kernel/actions", {
+      method: "POST",
+      headers: { "x-l27-agent": "smoke-bot" },
+      body: JSON.stringify({
+        action: "tool",
+        tool: "people.create",
+        input: { full_name: `محاولة ثانية ${ts}`, phone: "01099999997" },
+        approval_id: kernelApprovalId,
+      }),
+    }, owner);
+    const data = JSON.parse(text);
+    check("K11: إعادة استخدام التصريح ⇒ مرفوض (single-use)", data.status === "denied", `status=${data.status}`);
+  }
+
+  // K12: سلسلة المساءلة مكتوبة في سجل التدقيق
+  {
+    const { text } = await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "tool", tool: "audit.list", input: { limit: 50 } }),
+    }, owner);
+    const events = JSON.parse(text)?.value?.events ?? [];
+    const actions = events.map((e) => e.action);
+    const ok = actions.includes("ai.approval.granted") && actions.includes("person.create");
+    check(
+      "K12: التفويض والتغيير مُسجَّلان في التدقيق",
+      ok,
+      `granted=${actions.includes("ai.approval.granted")} created=${actions.includes("person.create")}`,
+    );
+  }
+
+  // K13: النواة الحيّة — المؤشرات تُبطَل بالحدث وتُعاد حسابها
+  {
+    await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "tool", tool: "reporting.kpis", input: {} }),
+    }, owner);
+    const { text: cachedText } = await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "tool", tool: "reporting.kpis", input: {} }),
+    }, owner);
+    const cached = JSON.parse(cachedText)?.value;
+
+    // تغيير في ركن آخر ⇒ حدث ⇒ إبطال
+    await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "tool",
+        tool: "people.create",
+        input: { full_name: `مؤثر على المؤشرات ${ts}`, phone: "01099999996", region_id: "region-giza" },
+      }),
+    }, owner);
+    const { text: freshText } = await req("/api/kernel/actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "tool", tool: "reporting.kpis", input: {} }),
+    }, owner);
+    const fresh = JSON.parse(freshText)?.value;
+
+    check(
+      "K13: حدث من ركن آخر يُبطل ذاكرة المؤشرات ⇒ رقم محدَّث",
+      cached?.cached === true && fresh?.cached === false && fresh?.people === cached?.people + 1,
+      `cached=${cached?.cached} people ${cached?.people}→${fresh?.people}`,
+    );
+  }
+
+  // K14: شاشة النواة الحيّة تُقدَّم
+  {
+    const { res, text } = await req("/kernel", {}, owner);
+    check(
+      "K14: شاشة /kernel تعرض الأنوية ومَقابضها",
+      res.status === 200 && text.includes("النواة") && text.includes("people"),
+      `status=${res.status}`,
+    );
+  }
+
   // ملخص
   let failed = 0;
   for (const r of results) {

@@ -9,7 +9,12 @@
     "start": "next start -H 0.0.0.0",
     "test": "vitest run",
     "smoke": "node tests/smoke/smoke.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "readme:generate": "node scripts/generate-readme.mjs",
+    "readme:check": "node scripts/generate-readme.mjs --check",
+    "readme:drift": "node scripts/check-manifest-drift.mjs",
+    "readme": "npm run readme:generate && npm run readme:check",
+    "readme:warn": "node scripts/generate-readme.mjs --warn-only && node scripts/generate-readme.mjs --check --warn-only"
   },
   "dependencies": {
     "next": "^16.3.6",
