@@ -167,6 +167,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 - جاهز لـ Vercel (Next.js قياسي + lockfile + CI أخضر). النشر يتطلب ربط حسابك على [vercel.com/new](https://vercel.com/new) واستيراد المستودع — أو `npx vercel`.
 - **تنويه مُثبَّت:** القرص ephemeral على Vercel serverless — محوّل PostgreSQL لاحقًا فوق نفس الواجهة (`Repository Interface`) بلا إعادة كتابة domain (TODO موثّق في `lib/persistence/file-json.ts`).
 - النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعليًا.
+- **المسار المجاني بدون بطاقة (Vercel Hobby + Neon/Supabase Free):** خطواته وفجواته المتبقية موثّقة في [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md).
 
 ## المزامنة مع GitHub
 
@@ -186,6 +187,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/sync-verification.md`](docs/sync-verification.md) | توثيق التحقق من المزامنة |
 | [`docs/readme-generation.md`](docs/readme-generation.md) | كيف يُولَّد هذا الملف |
 | [`docs/kernel.md`](docs/kernel.md) | معمارية النواة الحيّة والأنوية الذرية |
+| [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة) |
 
 ## خارج النطاق (صراحة)
 

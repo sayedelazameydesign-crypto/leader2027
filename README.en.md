@@ -167,6 +167,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 - Vercel-ready (standard Next.js + lockfile + green CI). Deploying requires linking your account at [vercel.com/new](https://vercel.com/new) and importing the repo — or `npx vercel`.
 - **Known caveat:** serverless disk on Vercel is ephemeral — a PostgreSQL adapter lands later on the same `Repository Interface` with no domain rewrite (TODO documented in `lib/persistence/file-json.ts`).
 - Deployment counts as **DEPLOYED = VERIFIED** only after the live URL has actually been exercised.
+- **Free cardless path (Vercel Hobby + Neon/Supabase Free):** steps and remaining gaps are documented in [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md).
 
 ## GitHub Sync
 
@@ -186,6 +187,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/sync-verification.md`](docs/sync-verification.md) | Sync verification record |
 | [`docs/readme-generation.md`](docs/readme-generation.md) | How this file is generated |
 | [`docs/kernel.md`](docs/kernel.md) | Live kernel & atomic nuclei architecture |
+| [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | Done/remaining roadmap toward a free, cardless deploy |
 
 ## Explicitly Out of Scope
 
