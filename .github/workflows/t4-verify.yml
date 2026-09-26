@@ -1,0 +1,67 @@
+# T4 — التحقق الحيّ عبر GitHub Actions (منفذ GitHub مفتوح لـvercel.app،
+# خلافًا لبيئة التطوير حيث بنية Vercel محجوبة).
+#
+# التشغيل: gh workflow run t4-verify.yml -f base_url=https://<domain>
+# النتائج: gh run view --log — أو ملخص الخطوة (Job Summary).
+#
+# الأسرار (GitHub → Settings → Secrets → Actions) — لا تُمرَّر كوسائط أبدًا:
+#   L27_T4_LOGIN_EMAIL / L27_T4_LOGIN_PASSWORD  (مالك bootstrap — للبند 6)
+#   L27_DEMO_PASSWORD                          (كلمة مرور بذر العرض — للبند 7)
+# البنود 1 · 2 · 3 تعمل بلا أسرار إطلاقًا.
+name: "T4 verify (live)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "رابط الإنتاج (https://<domain>)"
+        required: true
+        type: string
+      wait_cold:
+        description: "انتظار cold-start بالدقائق (0 = تخطَّ)"
+        required: false
+        default: "0"
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+
+      - name: "T4-1/2/3/6 — إثبات الحافة + XFF + cold-start + الكوكي"
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          WAIT_COLD: ${{ inputs.wait_cold }}
+          L27_T4_LOGIN_EMAIL: ${{ secrets.L27_T4_LOGIN_EMAIL }}
+          L27_T4_LOGIN_PASSWORD: ${{ secrets.L27_T4_LOGIN_PASSWORD }}
+        run: node scripts/t4-verify.mjs "$BASE_URL" --wait-cold "${WAIT_COLD:-0}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: "T4-7 — smoke ضد الرابط الحيّ"
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          L27_DEMO_PASSWORD: ${{ secrets.L27_DEMO_PASSWORD }}
+        run: |
+          if [ -z "$L27_DEMO_PASSWORD" ]; then
+            echo "T4-7: L27_DEMO_PASSWORD غير مضبوط في أسرار Actions — أضفه وأعد التشغيل" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          npm run smoke | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: "T4-4/5 — تأكيدات الطرفية (لا أسرار)"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_CHECK_ONLY }}
+        run: |
+          echo "T4-4: L27_RATE_BACKEND=memory يجب ألّا يكون في env النشر (تحقق من لوحة Vercel)" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$DATABASE_URL" ]; then
+            case "$DATABASE_URL" in
+              *-pooler*) echo "T4-5 pooler: yes ✅" >> "$GITHUB_STEP_SUMMARY" ;;
+              *) echo "T4-5 pooler: NO ❌" >> "$GITHUB_STEP_SUMMARY"; exit 1 ;;
+            esac
+          else
+            echo "T4-5: DATABASE_URL_CHECK_ONLY غير مضبوط (اختياري — للتأكيد فقط)" >> "$GITHUB_STEP_SUMMARY"
+          fi
