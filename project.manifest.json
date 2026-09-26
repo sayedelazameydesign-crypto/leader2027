@@ -1,0 +1,276 @@
+{
+  "$comment": "مصدر الحقيقة الوحيد (Single Source of Truth) لوثائق المشروع. README.md و README.en.md ملفات مُولَّدة آليًا من هذا الملف — لا تُعدَّل يدويًا. عدّل هنا ثم شغّل: npm run readme:generate",
+  "name": "Leader 2027",
+  "slug": "leader2027",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": "https://github.com/sayedelazameydesign-crypto/leader2027",
+  "node": "22",
+  "generated": {
+    "generator": "scripts/generate-readme.mjs",
+    "targets": ["README.md", "README.en.md"],
+    "banner": "GENERATED"
+  },
+  "description": {
+    "ar": "منصة تشغيل وإدارة للحملة الانتخابية: أشخاص (وعي بالمصدر)، متطوعون، عمل ميداني، تقارير، مؤشرات تشغيلية — في لوحة قيادة واحدة. **بلا أي تفضيلات سياسية** (عقد المنتج §5).",
+    "en": "An operations and management platform for an election campaign: people (source-aware), volunteers, field work, reports, and operational KPIs — in a single command dashboard. **No political preference data of any kind** (Product Contract §5)."
+  },
+  "status": {
+    "phase": "VS3",
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء**.",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — all gates green**."
+  },
+  "principles": {
+    "ar": [
+      "**§5 محظور مطلقًا:** لا انتماء سياسي ولا «درجة إقناع» ولا استنتاجها آليًا — أي payload يحملها يُرفض صراحةً.",
+      "**بلا إخفاء أزرار كـauthorization:** الصلاحيات تُفرض على الخادم (policy + service + API)، وإخفاء الـUI تحسين تجربة فقط.",
+      "**العقد قبل الكود:** كل شريحة تُقفل بعقد (`docs/contract-*.md`) قبل سطر تنفيذ واحد.",
+      "**لا ادعاء بلا إثبات:** كل بند مقبول له ملف دليل (اختبار/فحص smoke/سجل)."
+    ],
+    "en": [
+      "**§5 is absolute:** no political affiliation, no \"persuadability score\", no inferring them from behavior — any payload carrying them is explicitly rejected.",
+      "**No button-hiding as authorization:** permissions are enforced server-side (policy + service + API); hiding UI is a UX nicety only.",
+      "**Contract before code:** every slice is locked by a contract (`docs/contract-*.md`) before a single line of implementation.",
+      "**No claim without evidence:** every accepted criterion has an evidence artifact (test / smoke check / log)."
+    ]
+  },
+  "milestones": [
+    {
+      "id": "VS1",
+      "name": { "ar": "الأساس", "en": "Foundation" },
+      "state": "merged",
+      "evidence": "PR #1"
+    },
+    {
+      "id": "VS2",
+      "name": { "ar": "أشخاص + متطوعون + تقارير ميدانية", "en": "People + Volunteers + Field Reports" },
+      "state": "merged",
+      "evidence": "PR #1"
+    },
+    {
+      "id": "VS3",
+      "name": { "ar": "نواة الحملة الإدارية", "en": "Administrative Campaign Core" },
+      "state": "implemented",
+      "evidence": "docs/contract-vs3.md"
+    }
+  ],
+  "gates": [
+    { "id": "typecheck", "script": "npm run typecheck", "expected": "clean" },
+    { "id": "tests", "script": "npm test", "expected": "98/98" },
+    { "id": "build", "script": "npm run build", "expected": "PASS" },
+    { "id": "smoke", "script": "npm run smoke", "expected": "31/31" },
+    { "id": "ci", "script": "GitHub Actions", "expected": "PASS" }
+  ],
+  "skipScripts": ["readme", "readme:warn"],
+  "scriptNotes": {
+    "dev": { "ar": "تطوير على http://localhost:3000", "en": "Dev server on http://localhost:3000" },
+    "build": { "ar": "بناء إنتاجي", "en": "Production build" },
+    "start": { "ar": "إنتاج على 0.0.0.0:3000", "en": "Production server on 0.0.0.0:3000" },
+    "test": { "ar": "98 unit/integration", "en": "98 unit/integration tests" },
+    "smoke": { "ar": "31 فحص production ضد خادم قائم (`BASE_URL` اختياري)", "en": "31 production checks against a running server (`BASE_URL` optional)" },
+    "typecheck": { "ar": "فحص TypeScript بلا إخراج", "en": "TypeScript check, no emit" },
+    "readme:generate": { "ar": "توليد README من الـmanifest", "en": "Generate the README from the manifest" },
+    "readme:check": { "ar": "كشف انحراف README عن الـmanifest", "en": "Detect README drift from the manifest" },
+    "readme:drift": { "ar": "فحص استشاري: الـmanifest مقابل الكود (تحذيرات فقط)", "en": "Advisory check: manifest vs code (warnings only)" }
+  },
+  "features": {
+    "ar": [
+      "أشخاص وعي بالمصدر (source-aware) — بلا أي حقل تفضيل سياسي",
+      "متطوعون بدورة حياة كاملة (تسجيل ← تفعيل/إيقاف)",
+      "تقارير ميدانية + ملاحظات + حالات",
+      "مؤشرات تشغيلية ولوحة قيادة",
+      "إدارة الحملة والدورات الانتخابية والمناطق والفرق",
+      "إدارة المستخدمين + إبطال الجلسات عند تغيير الدور",
+      "تدقيق (Audit) لكل عملية تعديل",
+      "مصفوفة صلاحيات لستة أدوار + `settings:manage`"
+    ],
+    "en": [
+      "Source-aware people records — with no political-preference fields",
+      "Volunteers with a full lifecycle (register → activate/deactivate)",
+      "Field reports with notes and statuses",
+      "Operational KPIs and a command dashboard",
+      "Campaign, election cycles, regions, and teams management",
+      "User management + session invalidation on role change",
+      "An audit event for every mutation",
+      "A permission matrix for six roles plus `settings:manage`"
+    ]
+  },
+  "levels": {
+    "manager": { "ar": "إداري", "en": "Management" },
+    "field": { "ar": "ميداني", "en": "Field" },
+    "readonly": { "ar": "قراءة فقط", "en": "Read-only" }
+  },
+  "roles": [
+    {
+      "id": "OWNER",
+      "label": { "ar": "المالك", "en": "Owner" },
+      "account": "owner@leader2027.test",
+      "level": "manager"
+    },
+    {
+      "id": "CAMPAIGN_ADMIN",
+      "label": { "ar": "مدير النظام", "en": "Campaign Admin" },
+      "account": "admin@leader2027.test",
+      "level": "manager"
+    },
+    {
+      "id": "CAMPAIGN_MANAGER",
+      "label": { "ar": "مدير الحملة", "en": "Campaign Manager" },
+      "account": "manager@leader2027.test",
+      "level": "manager"
+    },
+    {
+      "id": "FIELD_COORDINATOR",
+      "label": { "ar": "منسق ميداني", "en": "Field Coordinator" },
+      "account": "coordinator@leader2027.test",
+      "level": "field"
+    },
+    {
+      "id": "FIELD_WORKER",
+      "label": { "ar": "عامل ميداني", "en": "Field Worker" },
+      "account": "worker@leader2027.test",
+      "level": "field"
+    },
+    {
+      "id": "VIEWER",
+      "label": { "ar": "مُطلع", "en": "Viewer" },
+      "account": "viewer@leader2027.test",
+      "level": "readonly"
+    }
+  ],
+  "actions": [
+    { "id": "dashboard:view", "label": { "ar": "لوحة القيادة", "en": "Dashboard" }, "group": "view" },
+    { "id": "people:view", "label": { "ar": "عرض الأشخاص", "en": "View people" }, "group": "view" },
+    { "id": "people:create", "label": { "ar": "إنشاء شخص", "en": "Create person" }, "group": "write" },
+    { "id": "people:update", "label": { "ar": "تعديل شخص", "en": "Update person" }, "group": "write" },
+    { "id": "volunteers:view", "label": { "ar": "عرض المتطوعين", "en": "View volunteers" }, "group": "view" },
+    { "id": "volunteers:create", "label": { "ar": "إنشاء متطوع", "en": "Create volunteer" }, "group": "write" },
+    { "id": "volunteers:update", "label": { "ar": "تعديل متطوع", "en": "Update volunteer" }, "group": "write" },
+    { "id": "reports:view", "label": { "ar": "عرض التقارير", "en": "View reports" }, "group": "view" },
+    { "id": "reports:create", "label": { "ar": "إنشاء تقرير", "en": "Create report" }, "group": "write" },
+    { "id": "reports:update_notes", "label": { "ar": "تعديل ملاحظات", "en": "Update notes" }, "group": "write" },
+    { "id": "reports:update_status", "label": { "ar": "تعديل حالة", "en": "Update status" }, "group": "write" },
+    { "id": "users:manage", "label": { "ar": "إدارة المستخدمين", "en": "Manage users" }, "group": "admin" },
+    { "id": "settings:manage", "label": { "ar": "إدارة الإعدادات", "en": "Manage settings" }, "group": "admin" },
+    { "id": "audit:view", "label": { "ar": "عرض التدقيق", "en": "View audit" }, "group": "admin" }
+  ],
+  "matrix": {
+    "OWNER": ["dashboard:view", "people:view", "people:create", "people:update", "volunteers:view", "volunteers:create", "volunteers:update", "reports:view", "reports:create", "reports:update_notes", "reports:update_status", "users:manage", "settings:manage", "audit:view"],
+    "CAMPAIGN_ADMIN": ["dashboard:view", "people:view", "people:create", "people:update", "volunteers:view", "volunteers:create", "volunteers:update", "reports:view", "reports:create", "reports:update_notes", "reports:update_status", "users:manage", "settings:manage", "audit:view"],
+    "CAMPAIGN_MANAGER": ["dashboard:view", "people:view", "people:create", "people:update", "volunteers:view", "volunteers:create", "volunteers:update", "reports:view", "reports:create", "reports:update_notes", "reports:update_status", "users:manage", "settings:manage", "audit:view"],
+    "FIELD_COORDINATOR": ["dashboard:view", "people:view", "people:create", "people:update", "volunteers:view", "volunteers:create", "volunteers:update", "reports:view", "reports:create", "reports:update_notes", "reports:update_status", "audit:view"],
+    "FIELD_WORKER": ["dashboard:view", "people:view", "volunteers:view", "reports:view", "reports:create", "reports:update_notes"],
+    "VIEWER": ["dashboard:view", "people:view", "volunteers:view", "reports:view"]
+  },
+  "api": [
+    { "method": "POST", "path": "/api/auth/login", "note": { "ar": "الدخول (cookie موقّع)", "en": "Sign in (signed cookie)" } },
+    { "method": "POST", "path": "/api/auth/logout", "note": { "ar": "الخروج", "en": "Sign out" } },
+    { "method": "GET", "path": "/api/health", "note": { "ar": "فحص الصحة (بلا مصادقة)", "en": "Health check (no auth)" } },
+    { "method": "GET/POST", "path": "/api/people", "note": { "ar": "قائمة / إنشاء", "en": "List / create" } },
+    { "method": "GET/PATCH", "path": "/api/people/:id", "note": { "ar": "قراءة / تعديل", "en": "Read / update" } },
+    { "method": "GET/POST", "path": "/api/volunteers", "note": { "ar": "قائمة / إنشاء", "en": "List / create" } },
+    { "method": "GET/PATCH", "path": "/api/volunteers/:id", "note": { "ar": "قراءة / تعديل الحالة", "en": "Read / update status" } },
+    { "method": "GET/POST", "path": "/api/field/reports", "note": { "ar": "قائمة / إنشاء", "en": "List / create" } },
+    { "method": "GET/PATCH", "path": "/api/field/reports/:id", "note": { "ar": "قراءة / ملاحظات+حالة", "en": "Read / notes + status" } },
+    { "method": "GET", "path": "/api/stats", "note": { "ar": "المؤشرات التشغيلية", "en": "Operational KPIs" } },
+    { "method": "GET/PATCH", "path": "/api/campaign", "note": { "ar": "الحملة (settings:manage)", "en": "Campaign (settings:manage)" } },
+    { "method": "GET/POST", "path": "/api/cycles", "note": { "ar": "الدورات الانتخابية", "en": "Election cycles" } },
+    { "method": "PATCH", "path": "/api/cycles/:id", "note": { "ar": "تعديل دورة", "en": "Update a cycle" } },
+    { "method": "GET/POST", "path": "/api/regions", "note": { "ar": "المناطق", "en": "Regions" } },
+    { "method": "GET/POST", "path": "/api/teams", "note": { "ar": "الفرق", "en": "Teams" } },
+    { "method": "GET/POST", "path": "/api/users", "note": { "ar": "المستخدمون (users:manage)", "en": "Users (users:manage)" } },
+    { "method": "PATCH", "path": "/api/users/:id", "note": { "ar": "اسم/دور/فريق/منطقة — البريد وكلمة المرور غير قابلين للتعديل في v1", "en": "Name/role/team/region — email and password are immutable in v1" } }
+  ],
+  "screens": {
+    "ar": [
+      "`/` لوحة القيادة · `/people` + `/people/[id]` · `/volunteers` + `/volunteers/[id]`",
+      "`/field/reports` + `/field/reports/new` + `/field/reports/[id]` · `/login`",
+      "`/admin` (الحملة/الدورات/المناطق/الفرق) · `/admin/users` — كلها خلف حدود المصادقة"
+    ],
+    "en": [
+      "`/` dashboard · `/people` + `/people/[id]` · `/volunteers` + `/volunteers/[id]`",
+      "`/field/reports` + `/field/reports/new` + `/field/reports/[id]` · `/login`",
+      "`/admin` (campaign/cycles/regions/teams) · `/admin/users` — all behind the auth boundary"
+    ]
+  },
+  "accountsNote": {
+    "ar": "كلمة المرور للكل: `Demo!2345` — بيانات تشغيلية تجريبية (seed-only) وليست إنتاجية.",
+    "en": "Password for all accounts: `Demo!2345` — demo seed-only operations data, not production credentials."
+  },
+  "sessionRules": {
+    "ar": [
+      "تغيير الدور يُسقط كل الجلسات السابقة فورًا (`session_epoch`) — تغيير الاسم/الفريق لا يطرد الجلسات.",
+      "البريد وكلمة المرور غير قابلين للتعديل في v1.",
+      "الجلسة = cookie موقّع HMAC-SHA256، وكلمات المرور scrypt (`node:crypto`) — صفر اعتماديات خارجية."
+    ],
+    "en": [
+      "Changing a role revokes every previous session immediately (`session_epoch`) — changing name/team does not.",
+      "Email and password are immutable in v1.",
+      "Sessions are HMAC-SHA256 signed cookies; passwords use scrypt (`node:crypto`) — zero extra dependencies."
+    ]
+  },
+  "structure": [
+    { "path": "app/(app)/", "note": { "ar": "لوحة قيادة، أشخاص، متطوعون، تقارير، إدارة — خلف حدود المصادقة", "en": "Dashboard, people, volunteers, reports, admin — behind the auth boundary" } },
+    { "path": "app/login/", "note": { "ar": "الدخول", "en": "Sign-in" } },
+    { "path": "app/api/", "note": { "ar": "people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health", "en": "people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health" } },
+    { "path": "lib/domain/", "note": { "ar": "قواعد الكيانات + services — people/volunteers/field/stats/dashboard/settings/users", "en": "Entity rules + services — people/volunteers/field/stats/dashboard/settings/users" } },
+    { "path": "lib/repositories/", "note": { "ar": "واجهات المخزن (Domain → Repository Interface → Persistence Adapter)", "en": "Store interfaces (Domain → Repository Interface → Persistence Adapter)" } },
+    { "path": "lib/persistence/", "note": { "ar": "InMemory + FileJson — PostgreSQL لاحقًا بلا إعادة كتابة domain", "en": "InMemory + FileJson — PostgreSQL later without rewriting the domain" } },
+    { "path": "lib/auth+authorization+audit+validation", "note": { "ar": "جلسات HMAC، مصفوفة 6 أدوار، تدقيق لكل mutation، رفض §5", "en": "HMAC sessions, six-role matrix, audit per mutation, §5 rejection" } },
+    { "path": "scripts/", "note": { "ar": "توليد الوثائق من `project.manifest.json` + فحص الانحراف", "en": "Doc generation from `project.manifest.json` + drift check" } },
+    { "path": "tests/", "note": { "ar": "unit + integration + smoke (يُشغَّل في CI ضد next start)", "en": "unit + integration + smoke (run in CI against next start)" } },
+    { "path": "project.manifest.json", "note": { "ar": "**مصدر الحقيقة الوحيد** — README مُولَّد منه", "en": "**Single source of truth** — the README is generated from it" } }
+  ],
+  "env": [
+    { "name": "L27_STORE", "default": "file", "values": "memory | file", "note": { "ar": "نوع المخزن", "en": "Store kind" } },
+    { "name": "L27_DB_PATH", "default": "var/data/db.json", "values": "path", "note": { "ar": "مسار ملف البيانات (وضع file)", "en": "Data file path (file mode)" } },
+    { "name": "L27_SESSION_SECRET", "default": "l27-dev-secret-change-me", "values": "secret", "note": { "ar": "سرّ توقيع الجلسة — **بدّله في الإنتاج**", "en": "Session signing secret — **change it in production**" } }
+  ],
+  "deploy": {
+    "ar": [
+      "جاهز لـ Vercel (Next.js قياسي + lockfile + CI أخضر). النشر يتطلب ربط حسابك على [vercel.com/new](https://vercel.com/new) واستيراد المستودع — أو `npx vercel`.",
+      "**تنويه مُثبَّت:** القرص ephemeral على Vercel serverless — محوّل PostgreSQL لاحقًا فوق نفس الواجهة (`Repository Interface`) بلا إعادة كتابة domain (TODO موثّق في `lib/persistence/file-json.ts`).",
+      "النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعليًا."
+    ],
+    "en": [
+      "Vercel-ready (standard Next.js + lockfile + green CI). Deploying requires linking your account at [vercel.com/new](https://vercel.com/new) and importing the repo — or `npx vercel`.",
+      "**Known caveat:** serverless disk on Vercel is ephemeral — a PostgreSQL adapter lands later on the same `Repository Interface` with no domain rewrite (TODO documented in `lib/persistence/file-json.ts`).",
+      "Deployment counts as **DEPLOYED = VERIFIED** only after the live URL has actually been exercised."
+    ]
+  },
+  "syncRules": {
+    "ar": [
+      "لا commit قبل تغيير مقصود + بوابات خضراء.",
+      "الدمج بإثبات `mergedAt ≠ null`.",
+      "الدورة المثبتة: `CHANGE → COMMIT → PUSH → VERIFY_REMOTE`."
+    ],
+    "en": [
+      "No commit before an intentional change plus green gates.",
+      "A merge is only proven by `mergedAt ≠ null`.",
+      "The proven loop: `CHANGE → COMMIT → PUSH → VERIFY_REMOTE`."
+    ]
+  },
+  "docs": [
+    { "path": "docs/contract-vs3.md", "label": { "ar": "عقد VS3 (LOCKED)", "en": "VS3 contract (LOCKED)" } },
+    { "path": "docs/plan-vs2.md", "label": { "ar": "خطة VS2 كما نُفِّذت", "en": "VS2 plan as implemented" } },
+    { "path": "docs/plan-vs3.md", "label": { "ar": "خطة VS3 كما نُفِّذت", "en": "VS3 plan as implemented" } },
+    { "path": "docs/sync-verification.md", "label": { "ar": "توثيق التحقق من المزامنة", "en": "Sync verification record" } },
+    { "path": "docs/readme-generation.md", "label": { "ar": "كيف يُولَّد هذا الملف", "en": "How this file is generated" } }
+  ],
+  "outOfScope": {
+    "ar": [
+      "تعديل بريد/كلمة مرور المستخدم (v2)",
+      "حذف الكيانات",
+      "`VoterRecord` وبقية بنود §13",
+      "أي UI لـ Assign Task (P3)",
+      "أي حقل تفضيل سياسي — محظور نهائيًا (§5)"
+    ],
+    "en": [
+      "Editing a user's email/password (v2)",
+      "Deleting entities",
+      "`VoterRecord` and the remaining §13 items",
+      "Any Assign Task UI (P3)",
+      "Any political-preference field — permanently forbidden (§5)"
+    ]
+  }
+}
