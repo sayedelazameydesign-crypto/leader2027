@@ -20,7 +20,11 @@ import { defineCell, type Actor, type Cell } from "@/lib/kernel/types";
 const human = (role: string, id = `user-${role.toLowerCase()}`): Actor => ({ id, role, kind: "human" });
 const agent: Actor = { id: "agent-1", role: "AGENT", kind: "agent" };
 
-beforeEach(() => setRepos(createMemoryRepos(seededStore())));
+beforeEach(() => {
+  // كلمة مرور عرض لكل عملية — لا قيمة ثابتة في المستودع (السابقة احتُرقت وشُلت).
+  process.env.L27_DEMO_PASSWORD = "fixture-kernel-login-only-4Kx";
+  setRepos(createMemoryRepos(seededStore()));
+});
 afterEach(() => setRepos(null));
 
 /* ------------------------------------------------------------------ إقلاع */
@@ -606,7 +610,7 @@ describe("kernel: بوابة الموافقة البشرية للوكلاء", ()
     try {
       const pending = await boot.kernel.execute(
         "auth.login",
-        { email: "owner@leader2027.test", password: "Demo!2345" },
+        { email: "owner@leader2027.test", password: "fixture-kernel-login-only-4Kx" },
         { actor: agent },
       );
       expect(pending.status).toBe("pending_approval");

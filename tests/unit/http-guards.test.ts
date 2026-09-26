@@ -1,0 +1,230 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSameOrigin, clientIp, trustedEdge } from "@/lib/http-guards";
+import {
+  MemoryRateLimiter,
+  PostgresRateLimiter,
+  resetRateLimits,
+} from "@/lib/rate-limit";
+
+function req(method: string, url: string, headers: Record<string, string> = {}) {
+  return new Request(url, { method, headers });
+}
+
+const saved: Record<string, string | undefined> = {};
+function setEnv(key: string, value: string | undefined) {
+  if (!(key in saved)) saved[key] = process.env[key];
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
+
+afterEach(() => {
+  delete process.env.L27_ALLOWED_HOSTS;
+  for (const [k, v] of Object.entries(saved)) setEnv(k, v);
+  for (const k of Object.keys(saved)) delete saved[k];
+});
+
+describe("clientIp — الهوية الموثوقة خلف L27_TRUST_EDGE", () => {
+  it("بلا TRUST_EDGE ⇒ unknown حتى مع x-real-ip — ALLOWED_HOSTS لا يمنح ثقة IP", () => {
+    setEnv("L27_ALLOWED_HOSTS", "app.example.com"); // سياسة أصل فقط
+    setEnv("L27_TRUST_EDGE", undefined);
+    const r = req("POST", "http://test/api", {
+      "x-real-ip": "203.0.113.50",
+      "x-forwarded-for": "1.2.3.4, 5.6.7.8",
+    });
+    expect(clientIp(r)).toBe("unknown");
+    expect(trustedEdge()).toBe(false);
+  });
+
+  it("TRUST_EDGE=1 ⇒ x-real-ip (الافتراضي) تُقرأ — وXFF تُتجاهل أبدًا", () => {
+    setEnv("L27_TRUST_EDGE", "1");
+    const r = req("POST", "http://test/api", {
+      "x-real-ip": "203.0.113.50",
+      "x-forwarded-for": "1.2.3.4, 5.6.7.8",
+    });
+    expect(clientIp(r)).toBe("203.0.113.50");
+  });
+
+  it("TRUST_EDGE=1 بلا ترويسة ⇒ unknown — لا تخمين من XFF أبدًا", () => {
+    setEnv("L27_TRUST_EDGE", "1");
+    expect(clientIp(req("POST", "http://test/api", { "x-forwarded-for": "9.9.9.9" }))).toBe("unknown");
+    expect(clientIp(req("POST", "http://test/api"))).toBe("unknown");
+  });
+
+  it("L27_CLIENT_IP_HEADER يغيّر المصدر (ضابط إيجابي — خلف TRUST_EDGE)", () => {
+    setEnv("L27_TRUST_EDGE", "1");
+    setEnv("L27_CLIENT_IP_HEADER", "cf-connecting-ip");
+    const r = req("POST", "http://test/api", {
+      "cf-connecting-ip": "198.51.100.8",
+      "x-forwarded-for": "1.1.1.1",
+    });
+    expect(clientIp(r)).toBe("198.51.100.8");
+  });
+
+  it("الاستقلالية: TRUST_EDGE وحده يمنح الثقة — وغيابه يمنعها ولو وُجدت ALLOWED_HOSTS", () => {
+    setEnv("L27_TRUST_EDGE", "1");
+    expect(clientIp(req("POST", "http://test/api", { "x-real-ip": "203.0.113.9" }))).toBe("203.0.113.9");
+    setEnv("L27_TRUST_EDGE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", "app.example.com");
+    expect(clientIp(req("POST", "http://test/api", { "x-real-ip": "203.0.113.9" }))).toBe("unknown");
+  });
+});
+
+describe("سياسة الأصل في الإنتاج (البند ج) — لا ثقة XFH صامتة", () => {
+  const mutating = () => req("POST", "http://test/api/people", { origin: "http://test" });
+
+  it("إنتاج بلا L27_ALLOWED_HOSTS ولا L27_TRUST_EDGE ⇒ فشل صريح", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", undefined);
+    expect(() => assertSameOrigin(mutating())).toThrow(/L27_ALLOWED_HOSTS/);
+  });
+
+  it("L27_TRUST_EDGE=1 يُصرِّح بالوضع المشتق · القائمة تكفي وحدها · البناء معفى", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", "1");
+    expect(assertSameOrigin(mutating())).toBeNull();
+
+    setEnv("L27_TRUST_EDGE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", "test");
+    expect(assertSameOrigin(mutating())).toBeNull();
+
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("NEXT_PHASE", "phase-production-build");
+    expect(assertSameOrigin(mutating())).toBeNull();
+  });
+
+  it("القراءة (GET) لا تُفرض عليها السياسة", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("NEXT_PHASE", undefined);
+    setEnv("L27_ALLOWED_HOSTS", undefined);
+    setEnv("L27_TRUST_EDGE", undefined);
+    expect(assertSameOrigin(req("GET", "http://test/api/people"))).toBeNull();
+  });
+});
+
+describe("فحص الأصل (CSRF defense-in-depth)", () => {
+  it("POST بلا Origin ⇒ مقبول (غير المتصفح — curl/اختبارات)", () => {
+    expect(assertSameOrigin(req("POST", "http://test/api/people"))).toBeNull();
+  });
+
+  it("POST بـOrigin مطابق ⇒ مقبول (host المضيف أو x-forwarded-host)", () => {
+    expect(
+      assertSameOrigin(req("POST", "http://test/api/people", { origin: "http://test" })),
+    ).toBeNull();
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal:3000/api/people", {
+          origin: "https://preview.e2b.app",
+          "x-forwarded-host": "preview.e2b.app",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("البند 3: التطبيع — منفذ افتراضي وحالة أحرف لا تُسبب 403 كاذبًا", () => {
+    // المتصفح يُسقط :443 من Origin بينما قد تحمل Host/XFH إياها
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://example.com",
+          "x-forwarded-host": "example.com:443",
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://Example.COM",
+          "x-forwarded-host": "example.com",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("البند 4: L27_ALLOWED_HOSTS صارمة — تجاهل ترويسات البروكسي المزوَّرة", () => {
+    process.env.L27_ALLOWED_HOSTS = "app.example.com";
+    // مهاجم يزوّر XFH — والقائمة الصارمة لا تقرؤه أصلًا
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://evil.com",
+          "x-forwarded-host": "evil.com",
+        }),
+      )?.status,
+    ).toBe(403);
+    // المضيف المسموح يعمل — حتى لو جاء عبر بروكسي
+    expect(
+      assertSameOrigin(
+        req("POST", "http://internal/api/people", {
+          origin: "https://app.example.com",
+          "x-forwarded-host": "evil.com",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("POST بـOrigin أجنبي ⇒ 403", () => {
+    const res = assertSameOrigin(
+      req("POST", "http://test/api/people", { origin: "https://evil.example" }),
+    );
+    expect(res).not.toBeNull();
+    expect(res!.status).toBe(403);
+  });
+
+  it("Origin فاسد ⇒ 403 · القراءة (GET) لا تُفحص أصلًا", () => {
+    expect(
+      assertSameOrigin(req("POST", "http://test/api", { origin: "not-a-url" }))?.status,
+    ).toBe(403);
+    expect(assertSameOrigin(req("GET", "http://test/api/people", { origin: "https://evil.example" }))).toBeNull();
+  });
+});
+
+describe("محدد المعدل — الذاكرة (نافذة منزلقة)", () => {
+  beforeEach(() => resetRateLimits());
+
+  it("يسمح حتى الحد ثم يرفض — وتنفتح النافذة مجددًا بالزمن", async () => {
+    const limiter = new MemoryRateLimiter();
+    const t0 = 1_000_000;
+    for (let i = 0; i < 5; i += 1) {
+      expect(await limiter.check("k1", 5, 1_000, t0 + i)).toBe(true);
+    }
+    expect(await limiter.check("k1", 5, 1_000, t0 + 10)).toBe(false);
+    // بعد انتهاء النافذة يُسمح مجددًا
+    expect(await limiter.check("k1", 5, 1_000, t0 + 2_000)).toBe(true);
+  });
+
+  it("مفاتيح معزولة — مفتاح واحد لا يُنهك غيره", async () => {
+    const limiter = new MemoryRateLimiter();
+    expect(await limiter.check("a", 1, 1_000, 0)).toBe(true);
+    expect(await limiter.check("a", 1, 1_000, 0)).toBe(false);
+    expect(await limiter.check("b", 1, 1_000, 0)).toBe(true);
+  });
+});
+
+// الحالة الموزَّعة — الدليل الحاسم على أن cold start لا يُفرّغ العدّاد:
+// مثيلان مستقلان (كيما حالتا serverless) يشتركان في العدّ عبر القاعدة.
+const pgUrl = process.env.L27_TEST_DATABASE_URL;
+
+describe.skipIf(!pgUrl)("محدد المعدل — Postgres موزَّع (حيّ)", () => {
+  it("مثيلان مستقلان يشتركان في العدّ — لا يبدأ من صفر مع cold start", async () => {
+    const a = new PostgresRateLimiter(pgUrl!);
+    const b = new PostgresRateLimiter(pgUrl!);
+    const key = `rate-live-${Date.now()}`;
+    // نافذة 5 دقائق تُبعد احتمال حدّة النافذة الثابتة أثناء الاختبار (سلوك موثّق).
+    const windowMs = 300_000;
+    // المثيل أ يستهلك الحدّ كله
+    for (let i = 0; i < 3; i += 1) {
+      expect(await a.check(key, 3, windowMs)).toBe(true);
+    }
+    // المثيل ب (cold start جديد) يرى الحالة كما هي ⇒ يرفض فورًا
+    expect(await b.check(key, 3, windowMs)).toBe(false);
+  });
+
+  it("فشل القاعدة ⇒ fail-open (سماح) — لا إغلاق للحملة", async () => {
+    const broken = new PostgresRateLimiter("postgres://user:bad@127.0.0.1:1/nope");
+    expect(await broken.check("k", 1, 1_000)).toBe(true);
+  });
+});

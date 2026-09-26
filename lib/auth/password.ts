@@ -13,6 +13,8 @@ export function verifyPassword(password: string, stored: string): boolean {
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   const salt = Buffer.from(parts[1], "hex");
   const expected = Buffer.from(parts[2], "hex");
+  // مقارنة ثابتة الزمن **على ناتج scrypt لا على كلمة المرور** — والطولان
+  // متساويان دائمًا (نُشتق إلى expected.length) فلا استثناء ولا تسريب طول.
   const actual = scryptSync(password, salt, expected.length);
   return timingSafeEqual(actual, expected);
 }

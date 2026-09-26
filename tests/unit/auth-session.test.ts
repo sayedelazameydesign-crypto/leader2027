@@ -10,19 +10,19 @@ import {
 
 describe("password (scrypt)", () => {
   it("hash ثم verify", () => {
-    const stored = hashPassword("Demo!2345");
+    const stored = hashPassword("unit-fixture-hash-only-9Wq");
     expect(stored.startsWith("scrypt$")).toBe(true);
-    expect(verifyPassword("Demo!2345", stored)).toBe(true);
+    expect(verifyPassword("unit-fixture-hash-only-9Wq", stored)).toBe(true);
   });
 
   it("يرفض كلمة مرور خاطئة أو stored تالفاً", () => {
-    const stored = hashPassword("Demo!2345");
+    const stored = hashPassword("unit-fixture-hash-only-9Wq");
     expect(verifyPassword("wrong", stored)).toBe(false);
-    expect(verifyPassword("Demo!2345", "garbage")).toBe(false);
+    expect(verifyPassword("unit-fixture-hash-only-9Wq", "garbage")).toBe(false);
   });
 
   it("يولد ملحًا مختلفاً لكل عملية", () => {
-    expect(hashPassword("Demo!2345")).not.toBe(hashPassword("Demo!2345"));
+    expect(hashPassword("unit-fixture-hash-only-9Wq")).not.toBe(hashPassword("unit-fixture-hash-only-9Wq"));
   });
 });
 

@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء**.",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green**."
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**."
   },
   "principles": {
     "ar": [
@@ -75,6 +75,15 @@
       },
       "state": "implemented",
       "evidence": "docs/kernel.md"
+    },
+    {
+      "id": "VS5",
+      "name": {
+        "ar": "بوابة الوكلاء (MCP)",
+        "en": "Agent Gateway (MCP)"
+      },
+      "state": "V5.1 implemented",
+      "evidence": "docs/contract-vs5.md"
     }
   ],
   "gates": [
@@ -86,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "166/166"
+      "expected": "237/237"
     },
     {
       "id": "build",
@@ -96,7 +105,7 @@
     {
       "id": "smoke",
       "script": "npm run smoke",
-      "expected": "45/45"
+      "expected": "49/49"
     },
     {
       "id": "ci",
@@ -122,12 +131,12 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "166 unit/integration (98 قائمة + 68 للنواة)",
-      "en": "166 unit/integration (98 existing + 68 kernel)"
+      "ar": "237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
+      "en": "237 unit/integration (166 existing + 71 new — including 8 live against Postgres: storage contract + distributed limiter)"
     },
     "smoke": {
-      "ar": "45 فحص production ضد خادم قائم (`BASE_URL` اختياري)",
-      "en": "45 production checks against a running server (`BASE_URL` optional)"
+      "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
+      "en": "49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway"
     },
     "typecheck": {
       "ar": "فحص TypeScript بلا إخراج",
@@ -160,7 +169,8 @@
       "**أنوية ذرية**: كل ركن وحدة مكتفية ذاتيًا تُعلن قدراتها وأحداثها ومَقابض تعديلها",
       "**استبدال ساخن**: نسخة جديدة تحلّ محل القديمة بلا إعادة تشغيل وبلا فقدان إعدادات",
       "**مَقابض تعديل لكل ركن**: تعديل سلوك ركن واحد من الواجهة/الـAPI بلا نشر وبلا أثر على غيره",
-      "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد"
+      "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد",
+      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)"
     ],
     "en": [
       "Source-aware people records — with no political-preference fields",
@@ -175,7 +185,8 @@
       "**Atomic nuclei**: each corner is a self-contained unit declaring its capabilities, events, and tuning knobs",
       "**Hot swap**: a newer version replaces the old one with no restart and no lost configuration",
       "**Per-corner knobs**: change one corner's behavior from the UI/API with no redeploy and no effect on others",
-      "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use"
+      "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use",
+      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)"
     ]
   },
   "levels": {
@@ -600,6 +611,14 @@
         "ar": "تنفيذ أداة / اعتماد أو رفض موافقة",
         "en": "Execute a tool / grant or deny an approval"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp",
+      "note": {
+        "ar": "بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة",
+        "en": "Agent Gateway — read-only MCP surface (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — writes rejected pre-execution and audited"
+      }
     }
   ],
   "screens": {
@@ -617,8 +636,8 @@
     ]
   },
   "accountsNote": {
-    "ar": "كلمة المرور للكل: `Demo!2345` — بيانات تشغيلية تجريبية (seed-only) وليست إنتاجية.",
-    "en": "Password for all accounts: `Demo!2345` — demo seed-only operations data, not production credentials."
+    "ar": "**لا كلمة مرور ثابتة في المستودع** (السابقة نُشرت علنًا واحتُرقت — شُلت بالكامل). كلمة مرور العرض لكل بيئة عبر `L27_DEMO_PASSWORD` (smoke/CI/معاينة تصرّحه)، وغيابها ⇒ عشوائية لكل عملية بذر. ⚠️ هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).",
+    "en": "**No fixed password in the repo** (the previous one was published and burned — fully removed). Demo password is per-environment via `L27_DEMO_PASSWORD` (declared by smoke/CI/preview); absent ⇒ random per seed run. These accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`)."
   },
   "sessionRules": {
     "ar": [
@@ -685,8 +704,8 @@
     {
       "path": "lib/persistence/",
       "note": {
-        "ar": "InMemory + FileJson — PostgreSQL لاحقًا بلا إعادة كتابة domain",
-        "en": "InMemory + FileJson — PostgreSQL later without rewriting the domain"
+        "ar": "InMemory + FileJson + PostgreSQL (جسر spawnSync) — نفس الواجهة، دلالات واحدة",
+        "en": "InMemory + FileJson + PostgreSQL (spawnSync bridge) — one interface, one set of semantics"
       }
     },
     {
@@ -716,16 +735,23 @@
         "ar": "**مصدر الحقيقة الوحيد** — README مُولَّد منه",
         "en": "**Single source of truth** — the README is generated from it"
       }
+    },
+    {
+      "path": "lib/mcp/",
+      "note": {
+        "ar": "بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1)",
+        "en": "Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1)"
+      }
     }
   ],
   "env": [
     {
       "name": "L27_STORE",
       "default": "file",
-      "values": "memory | file",
+      "values": "memory | file | postgres",
       "note": {
-        "ar": "نوع المخزن",
-        "en": "Store kind"
+        "ar": "نوع المخزن — `postgres` للمحوّل الدائم (Neon/Supabase/Vercel)",
+        "en": "Store kind — `postgres` for the durable adapter (Neon/Supabase/Vercel)"
       }
     },
     {
@@ -745,18 +771,140 @@
         "ar": "سرّ توقيع الجلسة — **بدّله في الإنتاج**",
         "en": "Session signing secret — **change it in production**"
       }
+    },
+    {
+      "name": "DATABASE_URL",
+      "default": "—",
+      "values": "postgres://…",
+      "note": {
+        "ar": "رابط PostgreSQL — **إلزامي مع L27_STORE=postgres** (VS5/T1)",
+        "en": "PostgreSQL connection string — **required with L27_STORE=postgres** (VS5/T1)"
+      }
+    },
+    {
+      "name": "L27_TEST_DATABASE_URL",
+      "default": "—",
+      "values": "postgres://…",
+      "note": {
+        "ar": "قاعدة الاختبارات العقدية الحيّة للمحوّل (CI/اختبارات فقط)",
+        "en": "Live adapter-contract test database (CI / tests only)"
+      }
+    },
+    {
+      "name": "L27_ALLOW_INSECURE_SECRET",
+      "default": "—",
+      "values": "1",
+      "note": {
+        "ar": "استثناء صريح للاختبارات الإنتاجية وحدها — الإنتاج يرفض السر الافتراضي (VS5/T2)",
+        "en": "Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2)"
+      }
+    },
+    {
+      "name": "NODE_ENV",
+      "default": "—",
+      "values": "development | test | production",
+      "note": {
+        "ar": "متغير المنصّة — الإنتاج يرفض سر الجلسة الافتراضي (VS5/T2)",
+        "en": "Platform variable — production rejects the default session secret (VS5/T2)"
+      }
+    },
+    {
+      "name": "NEXT_PHASE",
+      "default": "—",
+      "values": "phase-production-build",
+      "note": {
+        "ar": "داخل Next.js — يُعفى أثناء دورة البناء (لا توقيع جلسات في build)",
+        "en": "Set by Next.js — exempt during the build phase (no session signing in build)"
+      }
+    },
+    {
+      "name": "L27_SEED_DEMO_ACCOUNTS",
+      "default": "— (التطوير/الاختبار: 1 · الإنتاج: 0)",
+      "values": "0 | 1",
+      "note": "يصرّح بذر حسابات العرض — ومعها L27_DEMO_PASSWORD لكل بيئة (لا قيمة ثابتة في المستودع).",
+      "noteEn": "Enables demo-account seeding — with per-environment L27_DEMO_PASSWORD (no fixed value in the repo)."
+    },
+    {
+      "name": "L27_BOOTSTRAP_OWNER_EMAIL",
+      "default": "—",
+      "values": "email",
+      "note": {
+        "ar": "بريد مالك البداية للإنتاج — يُنشأ مرة واحدة عند أول بذر",
+        "en": "Bootstrap owner email for production — created once at first seed"
+      }
+    },
+    {
+      "name": "L27_BOOTSTRAP_OWNER_PASSWORD",
+      "default": "—",
+      "values": "secret (≥8)",
+      "note": {
+        "ar": "كلمة مرور مالك البداية — تجاهلها = بذر فارغ (لا حسابات)",
+        "en": "Bootstrap owner password — omit it and the seed stays empty (no accounts)"
+      }
+    },
+    {
+      "name": "L27_ALLOWED_HOSTS",
+      "default": "—",
+      "values": "example.com,app.example.com",
+      "note": {
+        "ar": "قائمة مضيفين صارمة لفحص CSRF — عند ضبطها لا تُقرأ ترويسات البروكسي إطلاقًا (التعريض المباشر)",
+        "en": "Strict host allowlist for the CSRF check — when set, proxy headers are never trusted (direct exposure)"
+      }
+    },
+    {
+      "name": "L27_RATE_BACKEND",
+      "default": "— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)",
+      "values": "memory",
+      "note": {
+        "ar": "إلحاح صريح لخلفية المُخدد المحلي — يُحذَّر منه في الإنتاج (cold start يفرّغ العدّاد)",
+        "en": "Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters)"
+      }
+    },
+    {
+      "name": "L27_CLIENT_IP_HEADER",
+      "default": "x-real-ip",
+      "values": "x-real-ip | cf-connecting-ip | …",
+      "note": "ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر).",
+      "noteEn": "Client-identity header for rate limiting — read only behind L27_TRUST_EDGE=1; x-forwarded-for is never read. Default x-real-ip is correct on Vercel (verified live in deploy)."
+    },
+    {
+      "name": "L27_TRUST_EDGE",
+      "default": "—",
+      "values": "1",
+      "note": "edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين).",
+      "noteEn": "Trusted sanitizing edge (Vercel / nginx REPLACE) — grants IP-header trust and relies on edge origin policy. Independent from L27_ALLOWED_HOSTS (never grants IP trust). Never enable on a directly exposed server. Production needs one of the two."
+    },
+    {
+      "name": "L27_DEMO_PASSWORD",
+      "description": "كلمة مرور حسابات العرض لكل بيئة — تُصرَّح في smoke/CI/المعاينة؛ لا قيمة افتراضية (غيابها ⇒ عشوائية غير معلنة).",
+      "descriptionEn": "Per-environment demo-account password — declared in smoke/CI/preview; no default (absent ⇒ random, never logged).",
+      "default": "",
+      "required": false,
+      "note": "القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا.",
+      "noteEn": "The previous value is burned and removed — never reuse a published password."
+    },
+    {
+      "name": "L27_DEBUG_HEADERS",
+      "description": "يُفعّل route التشخيص /api/debug/headers — مُطفأ افتراضيًا (404)؛ مرحلة التحقق الحيّ فقط ويُلغى بعدها.",
+      "descriptionEn": "Enables the /api/debug/headers diagnostic route — off by default (404); live-verification phase only, removed afterwards.",
+      "default": "",
+      "required": false,
+      "note": "لا يُفعَّل في الإنتاج بعد T4 — بصمة بنية (يكشف Vercel).",
+      "noteEn": "Never enable in production after T4 — infrastructure fingerprint."
     }
   ],
   "deploy": {
     "ar": [
       "جاهز لـ Vercel (Next.js قياسي + lockfile + CI أخضر). النشر يتطلب ربط حسابك على [vercel.com/new](https://vercel.com/new) واستيراد المستودع — أو `npx vercel`.",
       "**تنويه مُثبَّت:** القرص ephemeral على Vercel serverless — محوّل PostgreSQL لاحقًا فوق نفس الواجهة (`Repository Interface`) بلا إعادة كتابة domain (TODO موثّق في `lib/persistence/file-json.ts`).",
-      "النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعليًا."
+      "النشر = **DEPLOYED = VERIFIED** فقط بعد اختبار الـURL الحي فعليًا.",
+      "**المسار المجاني بدون بطاقة (Vercel Hobby + Neon/Supabase Free):** خطواته وفجواته المتبقية موثّقة في [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md)."
     ],
     "en": [
       "Vercel-ready (standard Next.js + lockfile + green CI). Deploying requires linking your account at [vercel.com/new](https://vercel.com/new) and importing the repo — or `npx vercel`.",
       "**Known caveat:** serverless disk on Vercel is ephemeral — a PostgreSQL adapter lands later on the same `Repository Interface` with no domain rewrite (TODO documented in `lib/persistence/file-json.ts`).",
-      "Deployment counts as **DEPLOYED = VERIFIED** only after the live URL has actually been exercised."
+      "Deployment counts as **DEPLOYED = VERIFIED** only after the live URL has actually been exercised.",
+      "**Free cardless path (Vercel Hobby + Neon/Supabase Free):** steps and remaining gaps are documented in [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md)."
     ]
   },
   "syncRules": {
@@ -812,6 +960,27 @@
       "label": {
         "ar": "معمارية النواة الحيّة والأنوية الذرية",
         "en": "Live kernel & atomic nuclei architecture"
+      }
+    },
+    {
+      "path": "docs/deploy-free-roadmap.md",
+      "label": {
+        "ar": "مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة)",
+        "en": "Done/remaining roadmap toward a free, cardless deploy"
+      }
+    },
+    {
+      "path": "docs/idea-trusted-agent-computer.md",
+      "label": {
+        "ar": "فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية",
+        "en": "Idea: Trusted Agent Computer — beating Manus on trust, not autonomy"
+      }
+    },
+    {
+      "path": "docs/contract-vs5.md",
+      "label": {
+        "ar": "عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1",
+        "en": "VS5 contract (LOCKED) — Agent Gateway · V5.1"
       }
     }
   ],
@@ -968,5 +1137,14 @@
         "en": "Tool catalogue for agents + the human approval gate."
       }
     }
+  ],
+  "productionChecklist": [
+    "T4-1 التحقق الحيّ من ترويسة Vercel: route تشخيصي مؤقت + curl — هل Vercel تضع x-real-ip مُنظَّفة فعلًا؟ (البديل x-vercel-forwarded-for) ثم احذف الـroute.",
+    "T4-2 إعادة اختبار المُخدد على الرابط الحيّ: 61 طلبًا بترويسات XFF مختلفة ⇒ 429 (اختبار serverless حقيقي).",
+    "T4-3 cold start: انتظر 5 دقائق بلا طلبات ثم 61 طلبًا ⇒ العدّ يستمر (ضمان ensure() للـl27_rate).",
+    "T4-4 L27_RATE_BACKEND=memory يجب أن يكون غائبًا على Vercel (الافتراضي postgres) — التحذير الصاخب قائم في الكود.",
+    "T4-5 Neon pooled DSN بـ -pooler — مع pool.max=5 و connectionTimeoutMillis=1500 وإلا timeouts متكررة.",
+    "T4-6 L27_SESSION_SECRET ≥ 32 حرفًا عشوائيًا — التحقق من الطول في بدء التشغيل قائم (session.ts).",
+    "T4-7 L27_SEED_DEMO_ACCOUNTS=0 (أو غائب) + L27_TRUST_EDGE=1 مقصود لا موروث + L27_ALLOWED_HOSTS=النطاق الحقيقي."
   ]
 }

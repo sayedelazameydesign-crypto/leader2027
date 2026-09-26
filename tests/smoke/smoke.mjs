@@ -2,8 +2,18 @@
  * Smoke — إثبات production على خادم next start حقيقي (AC12-17).
  * صفر اعتمادات — fetch فقط. يعمل محلياً وفي CI.
  * BASE_URL افتراضي: http://127.0.0.1:3000
+ * ⚠️ الخادم المُختبَر يعمل بحسابات العرض: شغّله بـ L27_SEED_DEMO_ACCOUNTS=1
+ * (+ L27_SESSION_SECRET وL27_ALLOWED_HOSTS=127.0.0.1,localhost في الإنتاج)
+ * — انظر .env.example.
  */
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
+// لا كلمات مرور ثابتة في المستودع — الـsmoke يدخل بكلمة مرور بيئته المُصرَّح بها
+// (نفس قيمة L27_DEMO_PASSWORD التي أُشغِّل بها الخادم المُختبَر).
+const DEMO_PASSWORD = process.env.L27_DEMO_PASSWORD;
+if (!DEMO_PASSWORD) {
+  console.error("L27_DEMO_PASSWORD مطلوب — شغّل الخادم والـsmoke بنفس القيمة (لا قيمة ثابتة في المستودع).");
+  process.exit(1);
+}
 const results = [];
 
 function check(name, pass, detail = "") {
@@ -37,7 +47,7 @@ async function login(email) {
   const res = await fetch(BASE + "/api/auth/login", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "Demo!2345" }),
+    body: JSON.stringify({ email, password: DEMO_PASSWORD }),
   });
   if (!res.ok) throw new Error(`login failed: ${email} → ${res.status}`);
   const raw = res.headers.get("set-cookie") ?? "";
@@ -275,7 +285,7 @@ async function main() {
       }, newUserCookie);
       const { res: r2 } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مس", email: `intruder-${ts}@leader2027.test`, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مس", email: `intruder-${ts}@leader2027.test`, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, newUserCookie);
       check("VS3-7: Coordinator → 403 على settings وusers", r1.status === 403 && r2.status === 403, `settings=${r1.status} users=${r2.status}`);
     }
@@ -290,7 +300,7 @@ async function main() {
       }, viewer);
       const { res: u } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مس", email: `intruder3-${ts}@leader2027.test`, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مس", email: `intruder3-${ts}@leader2027.test`, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, viewer);
       check("VS3-8: دون settings/users:manage → 403 على campaign/users (بند 21)",
         c.status === 403 && u.status === 403, `campaign=${c.status} users=${u.status}`);
@@ -366,7 +376,7 @@ async function main() {
       }, owner);
       const { res: dup } = await req("/api/users", {
         method: "POST",
-        body: JSON.stringify({ name: "مكرر", email: newUserEmail, password: "Demo!2345", role: "VIEWER" }),
+        body: JSON.stringify({ name: "مكرر", email: newUserEmail, password: DEMO_PASSWORD, role: "VIEWER" }),
       }, owner);
       check("VS3-12: تاريخ فاسد → 400 + بريد مكرر → 409", bad.status === 400 && dup.status === 409, `bad=${bad.status} dup=${dup.status}`);
     }
@@ -586,6 +596,92 @@ async function main() {
       "K14: شاشة /kernel تعرض الأنوية ومَقابضها",
       res.status === 200 && text.includes("النواة") && text.includes("people"),
       `status=${res.status}`,
+    );
+  }
+
+  // ── M: بوابة الوكلاء MCP (VS5/V5.1) ─────────────────────────────────────
+  // M1: initialize ⇒ serverInfo + ترويسة جلسة
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+        headers: { "x-l27-agent": "smoke-agent" },
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    check(
+      "M1: POST /api/mcp initialize ⇒ serverInfo + Mcp-Session-Id",
+      res.status === 200 &&
+        body.result?.serverInfo?.name === "leader2027-agent-gateway" &&
+        !!res.headers.get("mcp-session-id"),
+      `status=${res.status}`,
+    );
+  }
+
+  // M2: tools/list ⇒ كل الأدوات المُعلَنة مع وسم الكتابة
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) },
+      owner,
+    );
+    const tools = JSON.parse(text).result?.tools ?? [];
+    check(
+      "M2: tools/list ⇒ 27 أداة مع وسم «يتطلب موافقة» للكتابة",
+      res.status === 200 &&
+        tools.length === 27 &&
+        tools.some((t) => t.name === "people.create" && t.annotations?.requiresApproval),
+      `tools=${tools.length}`,
+    );
+  }
+
+  // M3: محاولة كتابة عبر MCP ⇒ مرفوضة قبل التنفيذ
+  const mcpSession = "mcp-smoke-1";
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: "people.create", arguments: { full_name: "محاولة smoke", source: "ميداني" } },
+        }),
+        headers: { "x-l27-agent": "smoke-agent", "mcp-session-id": mcpSession },
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    check(
+      "M3: tools/call كتابة ⇒ مرفوضة (isError) قبل التنفيذ",
+      res.status === 200 && body.result?.isError === true && body.result?.structuredContent?.status === "denied",
+      `status=${res.status}`,
+    );
+  }
+
+  // M4: محاولة الكتابة موثّقة في التدقيق (Replay ممكن)
+  {
+    const { res, text } = await req(
+      "/api/kernel/actions",
+      {
+        method: "POST",
+        body: JSON.stringify({ action: "tool", tool: "audit.list", input: { limit: 50 } }),
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    const events = body?.value?.events ?? [];
+    const denied = events.find(
+      (e) => e.action === "mcp.write.denied" && e.entity_id === mcpSession && e.meta?.tool === "people.create",
+    );
+    check(
+      "M4: mcp.write.denied مُسجَّل بمعرّف الجلسة (Replay)",
+      res.status === 200 && !!denied,
+      `found=${!!denied}`,
     );
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Repos, User } from "@/lib/repositories/interfaces";
 import { readSessionToken, SESSION_COOKIE } from "./session";
+import { assertSameOrigin } from "@/lib/http-guards";
 
 export function tokenFromCookieHeader(header: string | null): string | null {
   if (!header) return null;
@@ -33,8 +34,10 @@ export function publicUser(user: User): Omit<User, "password_hash"> {
   return safe;
 }
 
-/** حدود المصادقة على مستوى الـAPI — 401 قبل أي منطق. */
+/** حدود المصادقة على مستوى الـAPI — 401 قبل أي منطق · فحص الأصل على المُغيِّرات. */
 export function requireUserForApi(repos: Repos, req: Request): User | NextResponse {
+  const origin = assertSameOrigin(req);
+  if (origin) return origin;
   const user = getSessionUser(repos, tokenFromCookieHeader(req.headers.get("cookie")));
   if (!user) {
     return NextResponse.json(

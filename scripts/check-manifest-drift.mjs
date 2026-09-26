@@ -128,7 +128,15 @@ try {
 
   /* ---- متغيرات البيئة ---- */
   const envDeclared = (manifest.env ?? []).map((e) => e.name);
-  const codeFiles = ["lib/repositories/container.ts", "lib/auth/session.ts", "tests/smoke/smoke.mjs"];
+  const codeFiles = [
+    "lib/repositories/container.ts",
+    "lib/auth/session.ts",
+    "lib/persistence/seed.ts",
+    "lib/http-guards.ts", // L27_ALLOWED_HOSTS
+    "lib/rate-limit.ts", // L27_RATE_BACKEND
+    "tests/smoke/smoke.mjs",
+    "tests/integration/persistence-contract.test.ts", // VS5/T1 — L27_TEST_DATABASE_URL
+  ];
   const codeEnv = new Set();
   for (const f of codeFiles) {
     const src = read(f);

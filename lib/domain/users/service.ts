@@ -72,6 +72,11 @@ export function updateUser(
   }
 
   // VS3 — تقوية الجلسات: تغيير الدور يبطِل كل الجلسات السابقة (session_epoch += 1)
+  // في **نفس معاملة الكتابة** — لا نافذة زمنية بين التغيير والإبطال.
+  // ⚠️ قاعدة v2 مُلزِمة: أي مسار مستقبلي يغيّر صلاحية (تعديل كلمة المرور · تعطيل ·
+  // حذف مستخدم) **يجب** أن يزيد session_epoch في نفس الكتابة — وإلا تبقى التوكنات
+  // القديمة صالحة رغم تغيير السلطة. حاليًا هذه المسارات خارج نطاق v1 بالكامل
+  // (PATCH يقبل name/role/team/region فقط — لا حذف ولا تعطيل).
   const roleChanged = patch.value.role !== undefined && patch.value.role !== existing.role;
   const updated = repos.users.update(id, {
     ...patch.value,
