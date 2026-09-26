@@ -1,13 +1,36 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "l27_session";
-const SECRET = process.env.L27_SESSION_SECRET ?? "l27-dev-secret-change-me";
+const DEV_SECRET = "l27-dev-secret-change-me";
 const TTL_MS = 12 * 3600 * 1000;
 
 type Payload = { uid: string; exp: number; ep: number };
 
+/**
+ * سرّ التوقيع — VS5/T2: الإنتاج **يرفض** السر الافتراضي إطلاقًا.
+ * التطوير والاختبار يبقيان على الافتراضي (بلا احتكاك)، والاستثناء الصريح
+ * للاختبارات الإنتاجية وحدها: `L27_ALLOW_INSECURE_SECRET=1`.
+ * دورة البناء (`NEXT_PHASE`) معفاة — لا توقيع جلسات يحدث أثناء `next build`.
+ */
+function secret(): string {
+  const configured = process.env.L27_SESSION_SECRET;
+  const inProductionBuild = process.env.NEXT_PHASE === "phase-production-build";
+  if (
+    process.env.NODE_ENV === "production" &&
+    !inProductionBuild &&
+    process.env.L27_ALLOW_INSECURE_SECRET !== "1" &&
+    (!configured || configured === DEV_SECRET)
+  ) {
+    throw new Error(
+      "L27_SESSION_SECRET مطلوب في الإنتاج — الافتراضي غير آمن. " +
+        "اضبط سرًا عشوائيًا (32+ حرفًا) أو استثني صراحةً بـ L27_ALLOW_INSECURE_SECRET=1 (اختبارات فقط).",
+    );
+  }
+  return configured ?? DEV_SECRET;
+}
+
 function sign(payload: string): string {
-  return createHmac("sha256", SECRET).update(payload).digest("hex");
+  return createHmac("sha256", secret()).update(payload).digest("hex");
 }
 
 export function createSessionToken(userId: string, sessionEpoch = 0): string {

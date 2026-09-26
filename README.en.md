@@ -9,7 +9,7 @@
 
 ## Status
 
-**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green**.
+**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**.
 
 | Slice | Description | State | Evidence |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@
 | **VS2** | People + Volunteers + Field Reports | Merged | `PR #1` |
 | **VS3** | Administrative Campaign Core | Implemented | `docs/contract-vs3.md` |
 | **VS4** | Live Kernel + Atomic Nuclei | Implemented | `docs/kernel.md` |
+| **VS5** | Agent Gateway (MCP) | V5.1 implemented | `docs/contract-vs5.md` |
 
 ## Binding Principles
 
@@ -37,8 +38,8 @@ npm ci
 | `npm run dev` | Dev server on http://localhost:3000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server on 0.0.0.0:3000 |
-| `npm run test` | 166 unit/integration (98 existing + 68 kernel) |
-| `npm run smoke` | 45 production checks against a running server (`BASE_URL` optional) |
+| `npm run test` | 197 unit/integration (98 existing + 68 kernel + 31 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL) |
+| `npm run smoke` | 49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway |
 | `npm run typecheck` | TypeScript check, no emit |
 | `npm run readme:generate` | Generate the README from the manifest |
 | `npm run readme:check` | Detect README drift from the manifest |
@@ -106,6 +107,7 @@ Password for all accounts: `Demo!2345` — demo seed-only operations data, not p
 | `GET/PATCH` | `/api/kernel` | Live nuclei snapshot / tune a nucleus (settings:manage) |
 | `GET` | `/api/kernel/cells` | Nucleus and tool catalogue for agents |
 | `POST` | `/api/kernel/actions` | Execute a tool / grant or deny an approval |
+| `POST` | `/api/mcp` | Agent Gateway — read-only MCP surface (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — writes rejected pre-execution and audited |
 
 Every mutation writes an AuditEvent · `password_hash` never appears in any response.
 
@@ -136,28 +138,34 @@ tests/        unit / integration / smoke
 | `app/api/` | people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health |
 | `lib/domain/` | Entity rules + services — people/volunteers/field/stats/dashboard/settings/users |
 | `lib/repositories/` | Store interfaces (Domain → Repository Interface → Persistence Adapter) |
-| `lib/persistence/` | InMemory + FileJson — PostgreSQL later without rewriting the domain |
+| `lib/persistence/` | InMemory + FileJson + PostgreSQL (spawnSync bridge) — one interface, one set of semantics |
 | `lib/auth+authorization+audit+validation` | HMAC sessions, six-role matrix, audit per mutation, §5 rejection |
 | `scripts/` | Doc generation from `project.manifest.json` + drift check |
 | `tests/` | unit + integration + smoke (run in CI against next start) |
 | `project.manifest.json` | **Single source of truth** — the README is generated from it |
+| `lib/mcp/` | Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1) |
 
 ## Environment Variables
 
 | Variable | Values | Default | Note |
 | --- | --- | --- | --- |
-| `L27_STORE` | memory \| file | `file` | Store kind |
+| `L27_STORE` | memory \| file \| postgres | `file` | Store kind — `postgres` for the durable adapter (Neon/Supabase/Vercel) |
 | `L27_DB_PATH` | path | `var/data/db.json` | Data file path (file mode) |
 | `L27_SESSION_SECRET` | secret | `l27-dev-secret-change-me` | Session signing secret — **change it in production** |
+| `DATABASE_URL` | postgres://… | `—` | PostgreSQL connection string — **required with L27_STORE=postgres** (VS5/T1) |
+| `L27_TEST_DATABASE_URL` | postgres://… | `—` | Live adapter-contract test database (CI / tests only) |
+| `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2) |
+| `NODE_ENV` | development \| test \| production | `—` | Platform variable — production rejects the default session secret (VS5/T2) |
+| `NEXT_PHASE` | phase-production-build | `—` | Set by Next.js — exempt during the build phase (no session signing in build) |
 
 ## Quality Gates
 
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **166/166** |
+| `tests` | `npm test` | **197/197** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **45/45** |
+| `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -189,6 +197,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/kernel.md`](docs/kernel.md) | Live kernel & atomic nuclei architecture |
 | [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | Done/remaining roadmap toward a free, cardless deploy |
 | [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | Idea: Trusted Agent Computer — beating Manus on trust, not autonomy |
+| [`docs/contract-vs5.md`](docs/contract-vs5.md) | VS5 contract (LOCKED) — Agent Gateway · V5.1 |
 
 ## Explicitly Out of Scope
 

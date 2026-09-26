@@ -9,8 +9,8 @@
 ## 0. لوحة الحالة في سطر واحد
 
 ```text
-██████████████████████████████░░░░░░  المنتج: VS1→VS4 منفَّذ · البوابات الست خضراء
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  النشر المجاني: متبقي محوّل PostgreSQL + إعدادات الإنتاج + النشر والتحقق
+████████████████████████████████████  المنتج: VS1→VS5/V5.1 منفَّذ · البوابات كلها خضراء
+██████████████░░░░░░░░░░░░░░░░░░░░░  النشر المجاني: المحوّل جاهز — يتبقّى env على المضيف + النشر والتحقق الحيّ
 ```
 
 **الحالة الحقيقية:** المنتج مكتمل الوظائف ومضبوط — لكنه **لم يُنشر بعد**، والمانع الحقيقي الوحيد للنشر المجاني الباقي هو **محوّل قاعدة بيانات** (القرص على Vercel serverless مؤقّت — تنويه مُثبَّت في `lib/persistence/file-json.ts`).
@@ -25,7 +25,7 @@ flowchart LR
         A1[VS1+VS2: الأساس + أشخاص + متطوعون + تقارير\nMERGED في main — PR #1]
         A2[VS3: النواة الإدارية\nحملة/دورات/مناطق/فرق/مستخدمون + session_epoch]
         A3[VS4: النواة الحيّة + الأنوية الذرية\n8 أنوية · hot swap · مَقابض · بوابة موافقة بشرية]
-        A4[البوابات الست خضراء\ntypecheck · 166 test · build · 45 smoke · README · CI]
+        A4[البوابات الست خضراء\ntypecheck · 197 test · build · 49 smoke · README · CI]
         A5[حقن المخزن عبر Repository Interface\nmemory | file — جاهز لمحوّل ثالث]
     end
 
@@ -42,7 +42,7 @@ flowchart LR
     end
 
     subgraph VERIFY["🔎 التحقق = DEPLOYED = VERIFIED"]
-        D1["smoke 45/45 ضد BASE_URL=<الرابط الحي>"]
+        D1["smoke 49/49 ضد BASE_URL=<الرابط الحي>"]
         D2[اختبار بقاء البيانات عبر إعادة Deploy]
         D3[manifest ← DEPLOYED=VERIFIED\nCOMMIT → PUSH → VERIFY_REMOTE]
     end
@@ -69,14 +69,15 @@ flowchart LR
 | **CI أخضر** | typecheck + tests + build + smoke على كل push/PR | `.github/workflows/ci.yml` |
 | **الوثائق** | `project.manifest.json` مصدر حقيقة واحد · README مولَّد · فحص انحراف | `npm run readme:check` |
 
-### البوابات — مُعاد التحقق منها محليًا 2026-09-26 على `4bccedf`
+### البوابات — مُعاد التحقق منها محليًا 2026-09-26 (بعد VS5/V5.1)
 
 | البوابة | الأمر | النتيجة |
 | --- | --- | --- |
 | الأنواع | `npm run typecheck` | ✅ نظيف |
-| الاختبارات | `npm test` | ✅ **166/166** (98 + 68 للنواة) |
+| المحوّل الحيّ | `L27_TEST_DATABASE_URL` ← PostgreSQL 18.4 | ✅ عقد persistence كاملة |
+| الاختبارات | `npm test` | ✅ **197/197** (166 قائمة + 31 جديدًا — منها 6 حيّة ضد Postgres) |
 | البناء | `npm run build` | ✅ PASS — كل الشاشات و`/api/*` |
-| Smoke إنتاجي | `npm start` ثم `npm run smoke` | ✅ **45/45** |
+| Smoke إنتاجي | `npm start` ثم `npm run smoke` | ✅ **49/49** (تشمل بوابة الوكلاء MCP) |
 | README | `npm run readme:check` | ✅ متزامن مع الـmanifest |
 | CI | GitHub Actions | ✅ أخضر |
 
@@ -84,15 +85,17 @@ flowchart LR
 
 ## 3. ما هو متبقي ⏳ (فجوة النشر المجاني)
 
-| # | البند | لماذا هو مطلوب؟ | الحجم |
-| --- | --- | --- | --- |
-| **T1** | **محوّل PostgreSQL فوق `Repos`** + `schema.sql` + عقد اختبارات persistence على المحوّل الجديد | **المانع الحقيقي الوحيد.** القرص ephemeral على Vercel serverless — وضع `file` سيفقد كل البيانات مع أول إعادة نشر (التنويه مُثبَّت في `lib/persistence/file-json.ts`). المجال (domain) لا يتغيّر إطلاقًا — نفس الواجهة | متوسط |
-| **T2** | **سر جلسة إنتاجي** | `L27_SESSION_SECRET` الافتراضي `l27-dev-secret-change-me` غير آمن إطلاقًا للإنتاج | صغير جدًا |
-| **T3** | **تقوية الحسابات التجريبية** | كلمات المرور `Demo!2345` seed-only — تغييرها أو تعطيلها قبل أي استخدام حقيقي | صغير |
-| **T4** | **متغيرات البيئة على المضيف** | `L27_STORE=postgres` · `DATABASE_URL` · `L27_SESSION_SECRET` | صغير |
-| **T5** | **النشر الفعلي** | استيراد المستودع على Vercel Hobby + إنشاء قاعدة Neon — **لا تُدخل بطاقة في أي خطوة** | صغير |
-| **T6** | **التحقق الحيّ** | `BASE_URL=https://<app>.vercel.app npm run smoke` ⇒ 45/45 + اختبار بقاء البيانات عبر إعادة Deploy | صغير |
-| **T7** (اختياري) | نطاق مخصص · قفل نطاق البريد (`auth.domain`) · نسخ احتياطي دوري `pg_dump` | تحسينات ما بعد النشر | — |
+| # | البند | لماذا هو مطلوب؟ | الحجم | الحالة |
+| --- | --- | --- | --- | --- |
+| **T1** | **محوّل PostgreSQL فوق `Repos`** + `schema.sql` + عقد اختبارات persistence على المحوّل الجديد | **المانع الحقيقي الوحيد.** القرص ephemeral على Vercel serverless — وضع `file` سيفقد كل البيانات مع أول إعادة نشر (التنويه مُثبَّت في `lib/persistence/file-json.ts`). المجال (domain) لا يتغيّر إطلاقًا — نفس الواجهة | متوسط | ✅ **منفَّذ** (`lib/persistence/postgres.ts` — 197/197 منها 6 عقد حيّة ضد Postgres) |
+| **T2** | **سر جلسة إنتاجي** | `L27_SESSION_SECRET` الافتراضي `l27-dev-secret-change-me` غير آمن إطلاقًا للإنتاج | صغير جدًا | ✅ **منفَّذ** — الإنتاج يرفض الافتراضي (VS5/T2) |
+| **T3** | **تقوية الحسابات التجريبية** | كلمات المرور `Demo!2345` seed-only — تغييرها أو تعطيلها قبل أي استخدام حقيقي | صغير | ⏳ |
+| **T4** | **متغيرات البيئة على المضيف** | `L27_STORE=postgres` · `DATABASE_URL` · `L27_SESSION_SECRET` | صغير | ⏳ |
+| **T5** | **النشر الفعلي** | استيراد المستودع على Vercel Hobby + إنشاء قاعدة Neon — **لا تُدخل بطاقة في أي خطوة** | صغير | ⏳ |
+| **T6** | **التحقق الحيّ** | `BASE_URL=https://<app>.vercel.app npm run smoke` ⇒ 49/49 + اختبار بقاء البيانات عبر إعادة Deploy | صغير | ⏳ |
+| **T7** (اختياري) | نطاق مخصص · قفل نطاق البريد (`auth.domain`) · نسخ احتياطي دوري `pg_dump` | تحسينات ما بعد النشر | — | — |
+
+> **تنويه تنفيذي (2026-09-26):** T1+T2 نُفِّذا في دورة VS5/V5.1 مع **بوابة الوكلاء MCP** (انظر `docs/contract-vs5.md`) — المحوّل مُختبَر ضد PostgreSQL 18.4 حقيقي (استمرارية + بذر + عقد كامل).
 
 ### لماذا لا تكفي «النشر فقط» بدون T1؟
 
@@ -111,7 +114,7 @@ flowchart LR
 | **P2** | تفعيل `L27_STORE=postgres` في `container.ts` + seed أولي (الحسابات الست + الحملة) — وضعا `memory`/`file` **لم يتغيّرا** | الـ166 اختبارًا كما هي + الجديدة خضراء |
 | **P3** | إلزامية `L27_SESSION_SECRET` في الإنتاج (رفض التشغيل بالافتراضي) + تغيير/تعطيل كلمات المرور التجريبية | tests + build |
 | **P4** | النشر التجريبي: Neon Free ← Vercel Hobby (استيراد من GitHub، بلا بطاقة) + ضبط env | البناء على Vercel أخضر |
-| **P5** | `BASE_URL=<الرابط الحي> npm run smoke` ⇒ 45/45 + إنشاء سجل ← إعادة Deploy ← السجل باقٍ ✅ | **DEPLOYED = VERIFIED** |
+| **P5** | `BASE_URL=<الرابط الحي> npm run smoke` ⇒ 49/49 + إنشاء سجل ← إعادة Deploy ← السجل باقٍ ✅ | **DEPLOYED = VERIFIED** |
 | **P6** | تحديث `project.manifest.json` (الحالة + env) ← `npm run readme:generate` ← `CHANGE → COMMIT → PUSH → VERIFY_REMOTE` | readme:check + CI أخضر |
 
 ---
@@ -129,7 +132,7 @@ flowchart LR
 4. **Deploy** ← انتظر اكتمال البناء (نفس بوابات CI الخضراء).
 5. **التحقق:** من الطرفية:
    ```bash
-   BASE_URL=https://<your-app>.vercel.app npm run smoke   # المطلوب: 45/45
+   BASE_URL=https://<your-app>.vercel.app npm run smoke   # المطلوب: 49/49
    ```
 6. **اختبار بقاء البيانات:** أنشئ سجلًا من الواجهة ← Trigger Redeploy على Vercel ← السجل **ما زال موجودًا** ✅.
 7. **الإغلاق:** حدّث الـmanifest إلى `DEPLOYED = VERIFIED` ← `npm run readme:generate` ← `CHANGE → COMMIT → PUSH → VERIFY_REMOTE` (انظر `docs/sync-verification.md`).
@@ -154,7 +157,7 @@ flowchart LR
 - [ ] محوّل PostgreSQL خضراء فوق نفس `Repos` — بلا تعديل على domain (T1)
 - [ ] البوابات الست + اختبارات المحوّل الجديد خضراء في CI
 - [ ] نشر على **Vercel Hobby + Neon Free** — **لم تُدخل بطاقة في أي خطوة**
-- [ ] `smoke` **45/45** ضد الـURL الحيّ
+- [ ] `smoke` **49/49** ضد الـURL الحيّ
 - [ ] اختبار بقاء البيانات عبر إعادة نشر = البيانات باقية
 - [ ] سر جلسة إنتاجي فريد + الحسابات التجريبية مُقوّاة (T2+T3)
 - [ ] `project.manifest.json` ← **DEPLOYED = VERIFIED** + README مُحدَّث + remote SHA موثّق
@@ -163,6 +166,6 @@ flowchart LR
 
 ## 8. In English (short)
 
-- **Done:** VS1–VS4 are merged/implemented (people, volunteers, field reports, admin core, live kernel + atomic nuclei with human-approval gate). All six gates verified green locally today at `4bccedf`: typecheck, 166/166 tests, build, 45/45 production smoke, README sync, green CI. Storage sits behind a `Repository Interface` (memory | file) ready for a third adapter.
-- **Remaining until a free, cardless deploy:** **(T1)** a PostgreSQL adapter over the same `Repos` interface + schema/seed — the only real blocker (Vercel's serverless disk is ephemeral, documented in `lib/persistence/file-json.ts`); **(T2)** a production `L27_SESSION_SECRET`; **(T3)** hardening the `Demo!2345` seed accounts; **(T4–T6)** env vars on the host, deploy via **Vercel Hobby + Neon/Supabase Free (no credit card anywhere)**, then `BASE_URL=<live> npm run smoke` = 45/45 plus a redeploy data-persistence check.
+- **Done:** VS1–VS5/V5.1 implemented. **(T1)** the PostgreSQL adapter over the same `Repos` interface landed with live contract tests against real Postgres (197/197 incl. 6 live); **(T2)** production now rejects the default session secret. The MCP Agent Gateway (read-only, writes rejected pre-execution and audited) is live at `POST /api/mcp` — see `docs/contract-vs5.md`. Gates: typecheck, 197/197 tests, build, 49/49 production smoke, README sync.
+- **Remaining until a free, cardless deploy:** **(T3)** hardening the `Demo!2345` seed accounts; **(T4–T6)** env vars on the host (`L27_STORE=postgres`, `DATABASE_URL`, `L27_SESSION_SECRET`), deploy via **Vercel Hobby + Neon/Supabase Free (no credit card anywhere)**, then `BASE_URL=<live> npm run smoke` = 49/49 plus a redeploy data-persistence check.
 - **Definition of done:** `DEPLOYED = VERIFIED` only after the live URL has actually been exercised — never on build success alone.

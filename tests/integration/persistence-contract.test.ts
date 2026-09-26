@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createMemoryRepos } from "@/lib/persistence/memory";
 import { createFileJsonRepos } from "@/lib/persistence/file-json";
+import { createPostgresRepos } from "@/lib/persistence/postgres";
+import { syncQuery } from "@/lib/persistence/sync-pg";
 import type { Repos } from "@/lib/repositories/interfaces";
 import type { Person } from "@/lib/domain/people/person";
 
@@ -115,5 +117,46 @@ describe("persistence contract — FileJson (durable across reopen)", () => {
     const third = createFileJsonRepos(file, false);
     expect(third.people.getById(p.id)?.full_name).toBe("مستدام 2");
     expect(existsSync(file)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VS5/T1 — المحوّل الحيّ ضد Postgres (يُشغَّل عند توفّر L27_TEST_DATABASE_URL).
+// نفس العقد حرفيًا: create/read/update/volunteers+reports+audit + استمرارية + بذر.
+// ---------------------------------------------------------------------------
+
+const pgUrl = process.env.L27_TEST_DATABASE_URL;
+
+describe.skipIf(!pgUrl)("persistence contract — PostgreSQL (حيّ)", () => {
+  beforeAll(() => {
+    createPostgresRepos(pgUrl!, false); // يضمن وجود المخطط
+    syncQuery("DELETE FROM l27_store", [], pgUrl!);
+  });
+
+  contractSuite("PostgreSQL", () => {
+    syncQuery("DELETE FROM l27_store", [], pgUrl!);
+    return createPostgresRepos(pgUrl!, false);
+  });
+
+  it("الاستمرارية عبر إعادة إنشاء المحول (read-after-write على القرص المشترك)", () => {
+    syncQuery("DELETE FROM l27_store", [], pgUrl!);
+    const first = createPostgresRepos(pgUrl!, false);
+    const p = first.people.create(makePerson({ full_name: "مستدام-pg" }));
+
+    const second = createPostgresRepos(pgUrl!, false);
+    expect(second.people.getById(p.id)?.full_name).toBe("مستدام-pg");
+    second.people.update(p.id, { full_name: "مستدام-pg-2" });
+
+    const third = createPostgresRepos(pgUrl!, false);
+    expect(third.people.getById(p.id)?.full_name).toBe("مستدام-pg-2");
+  });
+
+  it("البذر على قاعدة فارغة — مرة واحدة فقط (seedIfEmpty)", () => {
+    syncQuery("DELETE FROM l27_store", [], pgUrl!);
+    const seeded = createPostgresRepos(pgUrl!, true);
+    expect(seeded.users.list().length).toBeGreaterThan(0);
+    const reopened = createPostgresRepos(pgUrl!, true);
+    expect(reopened.users.list()).toHaveLength(seeded.users.list().length);
+    expect(reopened.campaign.get()?.name).toBe("حملة Leader 2027");
   });
 });

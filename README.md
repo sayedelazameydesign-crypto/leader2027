@@ -9,7 +9,7 @@
 
 ## الحالة
 
-**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء**.
+**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.
 
 | الشريحة | الوصف | الحالة | الدليل |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@
 | **VS2** | أشخاص + متطوعون + تقارير ميدانية | مدموج | `PR #1` |
 | **VS3** | نواة الحملة الإدارية | منفَّذ | `docs/contract-vs3.md` |
 | **VS4** | النواة الحيّة + الأنوية الذرية | منفَّذ | `docs/kernel.md` |
+| **VS5** | بوابة الوكلاء (MCP) | V5.1 implemented | `docs/contract-vs5.md` |
 
 ## المبادئ الملزمة
 
@@ -37,8 +38,8 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 166 unit/integration (98 قائمة + 68 للنواة) |
-| `npm run smoke` | 45 فحص production ضد خادم قائم (`BASE_URL` اختياري) |
+| `npm run test` | 197 unit/integration (98 قائمة + 68 للنواة + 31 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL) |
+| `npm run smoke` | 49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
 | `npm run readme:check` | كشف انحراف README عن الـmanifest |
@@ -106,6 +107,7 @@ npm ci
 | `GET/PATCH` | `/api/kernel` | الصورة الحيّة للأنوية / تعديل مَقابض نواة (settings:manage) |
 | `GET` | `/api/kernel/cells` | كتالوج الأنوية والأدوات للوكلاء |
 | `POST` | `/api/kernel/actions` | تنفيذ أداة / اعتماد أو رفض موافقة |
+| `POST` | `/api/mcp` | بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة |
 
 كل mutation ينشئ AuditEvent · `password_hash` لا يظهر في أي استجابة.
 
@@ -136,28 +138,34 @@ tests/        unit / integration / smoke
 | `app/api/` | people / volunteers / field/reports / stats / auth / campaign / cycles / regions / teams / users / health |
 | `lib/domain/` | قواعد الكيانات + services — people/volunteers/field/stats/dashboard/settings/users |
 | `lib/repositories/` | واجهات المخزن (Domain → Repository Interface → Persistence Adapter) |
-| `lib/persistence/` | InMemory + FileJson — PostgreSQL لاحقًا بلا إعادة كتابة domain |
+| `lib/persistence/` | InMemory + FileJson + PostgreSQL (جسر spawnSync) — نفس الواجهة، دلالات واحدة |
 | `lib/auth+authorization+audit+validation` | جلسات HMAC، مصفوفة 6 أدوار، تدقيق لكل mutation، رفض §5 |
 | `scripts/` | توليد الوثائق من `project.manifest.json` + فحص الانحراف |
 | `tests/` | unit + integration + smoke (يُشغَّل في CI ضد next start) |
 | `project.manifest.json` | **مصدر الحقيقة الوحيد** — README مُولَّد منه |
+| `lib/mcp/` | بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1) |
 
 ## المتغيرات البيئية
 
 | المتغير | القيم | الافتراضي | ملاحظة |
 | --- | --- | --- | --- |
-| `L27_STORE` | memory \| file | `file` | نوع المخزن |
+| `L27_STORE` | memory \| file \| postgres | `file` | نوع المخزن — `postgres` للمحوّل الدائم (Neon/Supabase/Vercel) |
 | `L27_DB_PATH` | path | `var/data/db.json` | مسار ملف البيانات (وضع file) |
 | `L27_SESSION_SECRET` | secret | `l27-dev-secret-change-me` | سرّ توقيع الجلسة — **بدّله في الإنتاج** |
+| `DATABASE_URL` | postgres://… | `—` | رابط PostgreSQL — **إلزامي مع L27_STORE=postgres** (VS5/T1) |
+| `L27_TEST_DATABASE_URL` | postgres://… | `—` | قاعدة الاختبارات العقدية الحيّة للمحوّل (CI/اختبارات فقط) |
+| `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | استثناء صريح للاختبارات الإنتاجية وحدها — الإنتاج يرفض السر الافتراضي (VS5/T2) |
+| `NODE_ENV` | development \| test \| production | `—` | متغير المنصّة — الإنتاج يرفض سر الجلسة الافتراضي (VS5/T2) |
+| `NEXT_PHASE` | phase-production-build | `—` | داخل Next.js — يُعفى أثناء دورة البناء (لا توقيع جلسات في build) |
 
 ## بوابات الجودة
 
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **166/166** |
+| `tests` | `npm test` | **197/197** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **45/45** |
+| `smoke` | `npm run smoke` | **49/49** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI يشغّل هذه البوابات كلها على كل push/PR — انظر [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -189,6 +197,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/kernel.md`](docs/kernel.md) | معمارية النواة الحيّة والأنوية الذرية |
 | [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة) |
 | [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية |
+| [`docs/contract-vs5.md`](docs/contract-vs5.md) | عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1 |
 
 ## خارج النطاق (صراحة)
 

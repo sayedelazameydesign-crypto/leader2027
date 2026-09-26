@@ -589,6 +589,92 @@ async function main() {
     );
   }
 
+  // ── M: بوابة الوكلاء MCP (VS5/V5.1) ─────────────────────────────────────
+  // M1: initialize ⇒ serverInfo + ترويسة جلسة
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+        headers: { "x-l27-agent": "smoke-agent" },
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    check(
+      "M1: POST /api/mcp initialize ⇒ serverInfo + Mcp-Session-Id",
+      res.status === 200 &&
+        body.result?.serverInfo?.name === "leader2027-agent-gateway" &&
+        !!res.headers.get("mcp-session-id"),
+      `status=${res.status}`,
+    );
+  }
+
+  // M2: tools/list ⇒ كل الأدوات المُعلَنة مع وسم الكتابة
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) },
+      owner,
+    );
+    const tools = JSON.parse(text).result?.tools ?? [];
+    check(
+      "M2: tools/list ⇒ 27 أداة مع وسم «يتطلب موافقة» للكتابة",
+      res.status === 200 &&
+        tools.length === 27 &&
+        tools.some((t) => t.name === "people.create" && t.annotations?.requiresApproval),
+      `tools=${tools.length}`,
+    );
+  }
+
+  // M3: محاولة كتابة عبر MCP ⇒ مرفوضة قبل التنفيذ
+  const mcpSession = "mcp-smoke-1";
+  {
+    const { res, text } = await req(
+      "/api/mcp",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: "people.create", arguments: { full_name: "محاولة smoke", source: "ميداني" } },
+        }),
+        headers: { "x-l27-agent": "smoke-agent", "mcp-session-id": mcpSession },
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    check(
+      "M3: tools/call كتابة ⇒ مرفوضة (isError) قبل التنفيذ",
+      res.status === 200 && body.result?.isError === true && body.result?.structuredContent?.status === "denied",
+      `status=${res.status}`,
+    );
+  }
+
+  // M4: محاولة الكتابة موثّقة في التدقيق (Replay ممكن)
+  {
+    const { res, text } = await req(
+      "/api/kernel/actions",
+      {
+        method: "POST",
+        body: JSON.stringify({ action: "tool", tool: "audit.list", input: { limit: 50 } }),
+      },
+      owner,
+    );
+    const body = JSON.parse(text);
+    const events = body?.value?.events ?? [];
+    const denied = events.find(
+      (e) => e.action === "mcp.write.denied" && e.entity_id === mcpSession && e.meta?.tool === "people.create",
+    );
+    check(
+      "M4: mcp.write.denied مُسجَّل بمعرّف الجلسة (Replay)",
+      res.status === 200 && !!denied,
+      `found=${!!denied}`,
+    );
+  }
+
   // ملخص
   let failed = 0;
   for (const r of results) {

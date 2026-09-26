@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Repos } from "@/lib/repositories/interfaces";
 import { createMemoryRepos } from "@/lib/persistence/memory";
 import { createFileJsonRepos } from "@/lib/persistence/file-json";
+import { createPostgresRepos } from "@/lib/persistence/postgres";
 import { seededStore } from "@/lib/persistence/seed";
 
 let override: Repos | null = null;
@@ -16,7 +17,7 @@ export function setRepos(repos: Repos | null): void {
  * ملاحظة مُثبتة عملياً (بوابة smoke لـVS2): عوالم module في next start غير مشتركة
  * بين page-bundles وroute-handler-bundles — كاش singleton لكل عالم كان يُجمِّد
  * المخزن عند أول تحميل (warmup) ويُخفي الكتابات اللاحقة عن الصفحات.
- * لذلك وضع file: مخزن طازج من القرص في كل استدعاء = اتساق عبر كل العوالم.
+ * لذلك وضعا file/postgres: مخزن طازج من المصدر في كل استدعاء = اتساق عبر كل العوالم.
  */
 export function getRepos(): Repos {
   if (override) return override;
@@ -27,6 +28,12 @@ export function getRepos(): Repos {
       memoryRepos = createMemoryRepos(seededStore());
     }
     return memoryRepos;
+  }
+
+  if (storeKind === "postgres") {
+    const dsn = process.env.DATABASE_URL ?? "";
+    if (!dsn) throw new Error("L27_STORE=postgres يتطلب DATABASE_URL");
+    return createPostgresRepos(dsn);
   }
 
   const dbPath =

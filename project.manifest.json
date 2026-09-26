@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء**.",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green**."
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**."
   },
   "principles": {
     "ar": [
@@ -75,6 +75,15 @@
       },
       "state": "implemented",
       "evidence": "docs/kernel.md"
+    },
+    {
+      "id": "VS5",
+      "name": {
+        "ar": "بوابة الوكلاء (MCP)",
+        "en": "Agent Gateway (MCP)"
+      },
+      "state": "V5.1 implemented",
+      "evidence": "docs/contract-vs5.md"
     }
   ],
   "gates": [
@@ -86,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "166/166"
+      "expected": "197/197"
     },
     {
       "id": "build",
@@ -96,7 +105,7 @@
     {
       "id": "smoke",
       "script": "npm run smoke",
-      "expected": "45/45"
+      "expected": "49/49"
     },
     {
       "id": "ci",
@@ -122,12 +131,12 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "166 unit/integration (98 قائمة + 68 للنواة)",
-      "en": "166 unit/integration (98 existing + 68 kernel)"
+      "ar": "197 unit/integration (98 قائمة + 68 للنواة + 31 جديدًا — منها 6 عقد حيّة ضد Postgres عبر L27_TEST_DATABASE_URL)",
+      "en": "197 unit/integration (98 existing + 68 kernel + 31 new — including 6 live Postgres contract tests via L27_TEST_DATABASE_URL)"
     },
     "smoke": {
-      "ar": "45 فحص production ضد خادم قائم (`BASE_URL` اختياري)",
-      "en": "45 production checks against a running server (`BASE_URL` optional)"
+      "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
+      "en": "49 production checks against a running server (`BASE_URL` optional) — includes the MCP Agent Gateway"
     },
     "typecheck": {
       "ar": "فحص TypeScript بلا إخراج",
@@ -160,7 +169,8 @@
       "**أنوية ذرية**: كل ركن وحدة مكتفية ذاتيًا تُعلن قدراتها وأحداثها ومَقابض تعديلها",
       "**استبدال ساخن**: نسخة جديدة تحلّ محل القديمة بلا إعادة تشغيل وبلا فقدان إعدادات",
       "**مَقابض تعديل لكل ركن**: تعديل سلوك ركن واحد من الواجهة/الـAPI بلا نشر وبلا أثر على غيره",
-      "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد"
+      "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد",
+      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)"
     ],
     "en": [
       "Source-aware people records — with no political-preference fields",
@@ -175,7 +185,8 @@
       "**Atomic nuclei**: each corner is a self-contained unit declaring its capabilities, events, and tuning knobs",
       "**Hot swap**: a newer version replaces the old one with no restart and no lost configuration",
       "**Per-corner knobs**: change one corner's behavior from the UI/API with no redeploy and no effect on others",
-      "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use"
+      "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use",
+      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)"
     ]
   },
   "levels": {
@@ -600,6 +611,14 @@
         "ar": "تنفيذ أداة / اعتماد أو رفض موافقة",
         "en": "Execute a tool / grant or deny an approval"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp",
+      "note": {
+        "ar": "بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة",
+        "en": "Agent Gateway — read-only MCP surface (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — writes rejected pre-execution and audited"
+      }
     }
   ],
   "screens": {
@@ -685,8 +704,8 @@
     {
       "path": "lib/persistence/",
       "note": {
-        "ar": "InMemory + FileJson — PostgreSQL لاحقًا بلا إعادة كتابة domain",
-        "en": "InMemory + FileJson — PostgreSQL later without rewriting the domain"
+        "ar": "InMemory + FileJson + PostgreSQL (جسر spawnSync) — نفس الواجهة، دلالات واحدة",
+        "en": "InMemory + FileJson + PostgreSQL (spawnSync bridge) — one interface, one set of semantics"
       }
     },
     {
@@ -716,16 +735,23 @@
         "ar": "**مصدر الحقيقة الوحيد** — README مُولَّد منه",
         "en": "**Single source of truth** — the README is generated from it"
       }
+    },
+    {
+      "path": "lib/mcp/",
+      "note": {
+        "ar": "بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1)",
+        "en": "Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1)"
+      }
     }
   ],
   "env": [
     {
       "name": "L27_STORE",
       "default": "file",
-      "values": "memory | file",
+      "values": "memory | file | postgres",
       "note": {
-        "ar": "نوع المخزن",
-        "en": "Store kind"
+        "ar": "نوع المخزن — `postgres` للمحوّل الدائم (Neon/Supabase/Vercel)",
+        "en": "Store kind — `postgres` for the durable adapter (Neon/Supabase/Vercel)"
       }
     },
     {
@@ -744,6 +770,51 @@
       "note": {
         "ar": "سرّ توقيع الجلسة — **بدّله في الإنتاج**",
         "en": "Session signing secret — **change it in production**"
+      }
+    },
+    {
+      "name": "DATABASE_URL",
+      "default": "—",
+      "values": "postgres://…",
+      "note": {
+        "ar": "رابط PostgreSQL — **إلزامي مع L27_STORE=postgres** (VS5/T1)",
+        "en": "PostgreSQL connection string — **required with L27_STORE=postgres** (VS5/T1)"
+      }
+    },
+    {
+      "name": "L27_TEST_DATABASE_URL",
+      "default": "—",
+      "values": "postgres://…",
+      "note": {
+        "ar": "قاعدة الاختبارات العقدية الحيّة للمحوّل (CI/اختبارات فقط)",
+        "en": "Live adapter-contract test database (CI / tests only)"
+      }
+    },
+    {
+      "name": "L27_ALLOW_INSECURE_SECRET",
+      "default": "—",
+      "values": "1",
+      "note": {
+        "ar": "استثناء صريح للاختبارات الإنتاجية وحدها — الإنتاج يرفض السر الافتراضي (VS5/T2)",
+        "en": "Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2)"
+      }
+    },
+    {
+      "name": "NODE_ENV",
+      "default": "—",
+      "values": "development | test | production",
+      "note": {
+        "ar": "متغير المنصّة — الإنتاج يرفض سر الجلسة الافتراضي (VS5/T2)",
+        "en": "Platform variable — production rejects the default session secret (VS5/T2)"
+      }
+    },
+    {
+      "name": "NEXT_PHASE",
+      "default": "—",
+      "values": "phase-production-build",
+      "note": {
+        "ar": "داخل Next.js — يُعفى أثناء دورة البناء (لا توقيع جلسات في build)",
+        "en": "Set by Next.js — exempt during the build phase (no session signing in build)"
       }
     }
   ],
@@ -828,6 +899,13 @@
       "label": {
         "ar": "فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية",
         "en": "Idea: Trusted Agent Computer — beating Manus on trust, not autonomy"
+      }
+    },
+    {
+      "path": "docs/contract-vs5.md",
+      "label": {
+        "ar": "عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1",
+        "en": "VS5 contract (LOCKED) — Agent Gateway · V5.1"
       }
     }
   ],

@@ -7,6 +7,21 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      # VS5/T1 — المحوّل الحيّ ضد Postgres حقيقي في كل دورة (لا ادعاء بلا إثبات).
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: leader2027_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -14,13 +29,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
+      - name: "Unit + integration (incl. live PostgreSQL adapter)"
+        run: npm run typecheck && npm test
+        env:
+          L27_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/leader2027_test
       - run: npm run build
       - name: "Production smoke (evidence: AC1-11 on next start)"
         run: |
           npm start > /tmp/leader2027-server.log 2>&1 &
           npm run smoke
+        env:
+          # VS5/T2 — الإنتاج يرفض السر الافتراضي؛ الدورة تضبط سرًا صراحةً.
+          L27_SESSION_SECRET: ci-smoke-session-secret-please-rotate
       # ---------------------------------------------------------------------
       # الوثائق تأتي بعد نجاح البناء والاختبارات — وفشلها لا يُفشل الـbuild.
       # (انظر docs/readme-generation.md: OK ⇒ تحديث README · FAIL ⇒ Warning only)
