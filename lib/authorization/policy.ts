@@ -68,20 +68,34 @@ const MATRIX: Record<Role, Action[]> = {
 };
 
 export function can(actor: Actor, action: Action, resource?: Resource): boolean {
-  if (!MATRIX[actor.role]?.includes(action)) return false;
+  /**
+   * منع افتراضي صريح بدل الانهيار (F-01b).
+   * `MATRIX[role]` بحث في كائن له prototype: دور تالف مثل "constructor" أو
+   * "toString" كان يُعيد دالة ثم يرمي TypeError (⇒ 500 في أي route بدل 403).
+   * `Object.hasOwn` يحصر البحث في صفوف المصفوفة نفسها، فيسقط الدور غير المعروف
+   * أو غير النصي — والممثل التالف — على **منع**، وهو الثابت الموثّق أصلًا في
+   * `lib/kernel/bridge.ts` («منع افتراضي لكل إجراء») و`lib/kernel/kernel.ts`.
+   */
+  const role = (actor as Actor | null | undefined)?.role;
+  if (typeof role !== "string" || !Object.hasOwn(MATRIX, role)) return false;
+  if (!MATRIX[role as Role].includes(action)) return false;
 
-  // قاعدة موارد: عامل ميداني يعدّل ملاحظات تقريره هو فقط.
-  if (
-    action === "reports:update_notes" &&
-    actor.role === "FIELD_WORKER" &&
-    resource?.reported_by !== undefined
-  ) {
-    return resource.reported_by === actor.id;
+  /**
+   * قاعدة موارد: عامل ميداني يعدّل ملاحظات تقريره هو فقط (F-01a).
+   * **غياب سياق الملكية أو تلفه ⇒ منع** — لا منح صامت: أنواع TypeScript ليست
+   * تحققًا في زمن التشغيل، والمخزن مستند واحد بلا قيود كيانية
+   * (`lib/persistence/schema.sql` + `postgres.ts` يقرأ `doc as Store`)، فلا يُعتمد
+   * على الطبقات الأعلى. المنح يحتاج مطابقة صريحة: نص غير فارغ يساوي هوية الممثل.
+   */
+  if (action === "reports:update_notes" && role === "FIELD_WORKER") {
+    const owner = resource?.reported_by;
+    return typeof owner === "string" && owner.length > 0 && owner === actor.id;
   }
 
   return true;
 }
 
 export function actionsFor(role: Role): Action[] {
-  return [...MATRIX[role]];
+  // نفس فئة F-01b: دور تالف ⇒ قائمة فارغة (= لا صلاحيات) بدل TypeError.
+  return Object.hasOwn(MATRIX, role) ? [...MATRIX[role]] : [];
 }
