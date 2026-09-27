@@ -4,6 +4,7 @@ import {
   READ_ONLY_TOOLS,
   accountSnapshot,
   autofillArguments,
+  availabilityRaw,
   callReadOnlyTool,
   createTransport,
   decide,
@@ -53,13 +54,16 @@ function mockFetch(seen: Seen[], opts: { sse?: boolean } = {}): typeof fetch {
         });
       case "get_details":
         return reply(200, {
-          operations: [
+          total_count: 2,
+          success_count: 2,
+          error_count: 0,
+          results: [
             {
               operation_id: "tavily.extract",
               arguments_schema: { type: "object", required: ["urls"], properties: { urls: { type: "array", items: { type: "string" } } }, additionalProperties: false },
               read_only: true,
               side_effects: [],
-              availability: "available",
+              availability: "ga",
               price: { usd: 0.002, currency: "USD" },
               known_pitfalls: ["rate limited"],
             },
@@ -190,6 +194,13 @@ describe("AIsa read-only adapter — policy decision", () => {
     const d = decide(base, { ...proposal, max_price_usd: 5 }, { maxPriceUsd: 1, requireReadOnly: true, requireAvailable: true });
     expect(d.reasons.join()).toMatch(/exceeds policy cap/);
   });
+  it("availability vocabulary: ga/stable/beta ok; deprecated/degraded not ok; unknown words => unknown (deny)", () => {
+    for (const a of ["ga", "stable", "beta", { status: "live" }, { available: true }, true]) expect(decide({ ...base, availability: a }, proposal).checks.availability).toBe("ok");
+    for (const a of ["deprecated", { status: "degraded" }, false]) expect(decide({ ...base, availability: a }, proposal).checks.availability).toBe("not_ok");
+    expect(decide({ ...base, availability: "tier-3-mystery" }, proposal).checks.availability).toBe("unknown");
+    expect(availabilityRaw({ status: "ga", regions: ["eu"] })).toBe('{status="ga",regions=array(1)}');
+    expect(availabilityRaw("stable")).toBe('"stable"');
+  });
   it("write operations, side effects, unavailability, bad schema, id mismatch => DENY", () => {
     expect(decide({ ...base, read_only: false }, proposal).decision).toBe("DENY");
     expect(decide({ ...base, read_only: undefined }, proposal).reasons.join()).toMatch(/undeclared/);
@@ -267,8 +278,10 @@ describe("AIsa read-only adapter — full pipeline (mocked network)", () => {
     expect(text).toMatch(/AISA_DISCOVERY=VERIFIED/);
     expect(text).toMatch(/AISA_GET_DETAILS=VERIFIED/);
     expect(text).toMatch(/AISA_PAID_USE=NOT_EXECUTED/);
-    expect(text).toMatch(/decision=ADMIT_TO_AUTHORIZATION/); // tavily.extract: fixed 0.002 <= 0.01, read-only, available, urls autofilled
+    expect(text).toMatch(/chosen=tavily\.extract decision=ADMIT_TO_AUTHORIZATION/); // fixed 0.002 <= 0.01, read-only, ga, urls autofilled
     expect(text).toMatch(/autofilled=\[urls\]/);
+    expect(text).toMatch(/POLICY: policy_max_usd=0\.01 tavily\.extract=ADMIT web\.search=DENY\(price\)/); // query autofilled => schema passes; dynamic price denies
+    expect(lines.filter((l) => l.startsWith("::notice")).length).toBeLessThanOrEqual(10); // GitHub annotation budget per step
     // the server counts our own free `account` calls: today_calls moves by +1, today_usd does not — printed as path+delta only
     expect(text).toMatch(/billing_related_changed=1 \[data\.usage\.today_calls:\+1\]/);
     expect(text).not.toMatch(/today_usd/);

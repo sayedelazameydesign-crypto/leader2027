@@ -309,17 +309,35 @@ export type Decision = {
   };
 };
 
+const AVAIL_OK = new Set(["available", "live", "ok", "up", "active", "operational", "healthy", "ga", "stable", "production", "public", "enabled", "online", "ready", "yes", "true", "beta", "preview"]);
+const AVAIL_NOT_OK = new Set(["unavailable", "down", "disabled", "deprecated", "retired", "degraded", "maintenance", "offline", "no", "false", "coming_soon", "planned", "paused", "blocked", "restricted"]);
+
 function availabilityOf(a: unknown): "ok" | "not_ok" | "unknown" {
-  const OK = new Set(["available", "live", "ok", "up", "active", "operational", "healthy"]);
   if (a === undefined || a === null) return "unknown";
   if (typeof a === "boolean") return a ? "ok" : "not_ok";
-  if (typeof a === "string") return OK.has(a.toLowerCase()) ? "ok" : "not_ok";
+  const word = (w: string): "ok" | "not_ok" | "unknown" => {
+    const x = w.toLowerCase().trim();
+    return AVAIL_OK.has(x) ? "ok" : AVAIL_NOT_OK.has(x) ? "not_ok" : "unknown";
+  };
+  if (typeof a === "string") return word(a);
   const r = asRecord(a);
   if (r) {
     if (typeof r.available === "boolean") return r.available ? "ok" : "not_ok";
-    if (typeof r.status === "string") return OK.has(r.status.toLowerCase()) ? "ok" : "not_ok";
+    if (typeof r.enabled === "boolean") return r.enabled ? "ok" : "not_ok";
+    for (const k of ["status", "state", "tier", "stage", "level"]) if (typeof r[k] === "string") return word(r[k] as string);
   }
   return "unknown";
+}
+
+/** ملخص خام قصير لقيمة availability (بيانات كتالوج عامة) — لتشخيص المفردات غير المعروفة. */
+export function availabilityRaw(a: unknown): string {
+  if (a === undefined) return "undefined";
+  if (a === null) return "null";
+  if (typeof a === "string") return JSON.stringify(a.slice(0, 40));
+  if (typeof a === "boolean" || typeof a === "number") return String(a);
+  const r = asRecord(a);
+  if (r) return `{${Object.entries(r).slice(0, 6).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.slice(0, 24)) : Array.isArray(v) ? `array(${v.length})` : typeof v === "object" && v !== null ? "object" : String(v)}`).join(",")}}`;
+  return Array.isArray(a) ? `array(${a.length})` : typeof a;
 }
 
 function sideEffectsOf(s: unknown): "none" | "present" | "unknown" {
@@ -381,13 +399,23 @@ export class Evidence {
     this.secrets = secrets;
     this.emit = emit;
   }
-  say(section: string, text: string): void {
+  /** notice=false ⇒ في ملف الدليل/الملخص فقط (GitHub يقصّ التعليقات عند 10 لكل خطوة). */
+  say(section: string, text: string, notice = true): void {
     const line = sanitize(`${section}: ${text}`, this.secrets);
     this.lines.push(line);
-    this.emit(`::notice title=${section}::${line}`);
+    if (notice) this.emit(`::notice title=${section}::${line}`);
   }
+  /** حقائق JSON منقّحة بنيويًا: التنقيح على الأوراق النصية فقط (لا قصّ للبنية). */
   fact(key: string, value: unknown): void {
-    this.facts[key] = JSON.parse(sanitize(JSON.stringify(value ?? null), this.secrets));
+    const redact = (v: unknown, depth: number): unknown => {
+      if (depth > 12) return "<depth>";
+      if (typeof v === "string") return sanitize(v, this.secrets);
+      if (Array.isArray(v)) return v.slice(0, 50).map((x) => redact(x, depth + 1));
+      const r = asRecord(v);
+      if (r) return Object.fromEntries(Object.entries(r).slice(0, 50).map(([k, x]) => [sanitize(k, this.secrets), redact(x, depth + 1)]));
+      return v ?? null;
+    };
+    this.facts[key] = redact(value, 0);
   }
 }
 
@@ -537,7 +565,7 @@ export async function runPipeline(opts: CliOptions, env: Record<string, string |
     AISA_RUNTIME_INTEGRATION: "NOT_PRESENT (adapter is standalone; not imported by app/ or lib/)",
   };
   const useCalls: string[] = [];
-  ev.say("ADAPTER", `read-only adapter; allowed tools=[${READ_ONLY_TOOLS.join(",")}] endpoint=${AISA_MCP_ENDPOINT}`);
+  ev.say("ADAPTER", `read-only adapter; allowed tools=[${READ_ONLY_TOOLS.join(",")}] endpoint=${AISA_MCP_ENDPOINT}`, false);
   if (!key) ev.say("KEY", "AISA_API_KEY=absent (GitHub Actions secret; never via chat)");
   else ev.say("KEY", `AISA_API_KEY=present length=${key.length} prefix_ok=${key.startsWith("sk-aisa-") ? "yes" : "no"} (no fingerprint by default)`);
 
@@ -546,11 +574,13 @@ export async function runPipeline(opts: CliOptions, env: Record<string, string |
 
   // 0) لقطة حساب «قبل» (اختيارية، مجانية)
   let before: unknown = null;
+  let beforeStatus = "n/a";
   if (key && opts.accountSnapshot) {
     const r = await accountSnapshot(auth);
     useCalls.push("account");
     before = r.payload;
-    ev.say("ACCOUNT", `snapshot before -> ${r.status} isError=${r.isError} (free, read-only; values never printed)`);
+    beforeStatus = `${r.status}${r.isError ? "!" : ""}`;
+    ev.say("ACCOUNT", `snapshot before -> ${r.status} isError=${r.isError} (free, read-only; values never printed)`, false);
   }
 
   // 1) الوصول بلا مفتاح — سلوك الخادم الفعلي مقابل الكتالوج
@@ -617,25 +647,33 @@ export async function runPipeline(opts: CliOptions, env: Record<string, string |
     const pitfalls = Array.isArray(det.known_pitfalls) ? det.known_pitfalls.length : det.known_pitfalls ? 1 : 0;
     ev.say(
       "DETAILS",
-      `${det.operation_id}: read_only=${det.read_only ?? "undeclared"} side_effects=${sideEffectsOf(det.side_effects)} availability=${availabilityOf(det.availability)} price=${price.kind}${price.usd !== null ? `:${price.usd}usd` : ""} required=[${req.join(",")}] pitfalls=${pitfalls}`,
+      `${det.operation_id}: read_only=${det.read_only ?? "undeclared"} side_effects=${sideEffectsOf(det.side_effects)} availability=${availabilityOf(det.availability)}(raw:${availabilityRaw(det.availability)}) price=${price.kind}${price.usd !== null ? `:${price.usd}usd` : ""} required=[${req.join(",")}] pitfalls=${pitfalls}`,
+      false,
     );
   }
 
-  // 5) proposal (بلا تنفيذ) + 6) policy decision
-  const top = detailList.find((x) => x.operation_id === ids[0]) ?? detailList[0];
-  if (top) {
+  // 5) proposals (بلا تنفيذ) + 6) policy decision — لكل مرشح بترتيب البحث؛ الاقتراح المختار = أول مقبول وإلا الأول
+  const policy: Policy = { ...DEFAULT_POLICY, maxPriceUsd: opts.maxPriceUsd };
+  const evaluated: Array<{ proposal: Proposal; decision: Decision; filled: string[] }> = [];
+  for (const id of ids) {
+    const det = detailList.find((x) => x.operation_id === id);
+    if (!det) continue;
     let args = opts.args ?? {};
     let filled: string[] = [];
-    if (!opts.args && opts.autofill) ({ args, filled } = autofillArguments(top.arguments_schema, opts.query));
-    const proposal: Proposal = { operation_id: top.operation_id, arguments: args, max_price_usd: opts.maxPriceUsd };
-    const policy: Policy = { ...DEFAULT_POLICY, maxPriceUsd: opts.maxPriceUsd };
-    const decision = decide(top, proposal, policy);
-    gate.AISA_PRICE_CAP = `policy_max_usd=${opts.maxPriceUsd} within_cap=${decision.checks.price_within_cap}`;
-    ev.say("PROPOSAL", `operation_id=${proposal.operation_id} arg_keys=[${Object.keys(args).join(",")}] autofilled=[${filled.join(",")}] max_price_usd=${proposal.max_price_usd} (proposal only; not executed)`);
-    ev.say("POLICY", `decision=${decision.decision} schema=${decision.checks.schema} price=${decision.checks.price.kind} within_cap=${decision.checks.price_within_cap} read_only=${decision.checks.read_only ?? "undeclared"} side_effects=${decision.checks.side_effects} availability=${decision.checks.availability}`);
-    if (decision.reasons.length) ev.say("POLICY", `reasons=${decision.reasons.slice(0, 6).join(" | ")}`);
-    ev.fact("proposal", proposal);
-    ev.fact("decision", decision);
+    if (!opts.args && opts.autofill) ({ args, filled } = autofillArguments(det.arguments_schema, opts.query));
+    const proposal: Proposal = { operation_id: id, arguments: args, max_price_usd: opts.maxPriceUsd };
+    evaluated.push({ proposal, decision: decide(det, proposal, policy), filled });
+  }
+  const reasonCodes = (d: Decision): string => [...new Set(d.reasons.map((r) => r.split(":")[0].trim()))].join("+") || "-";
+  if (evaluated.length > 0) {
+    const chosen = evaluated.find((e) => e.decision.decision === "ADMIT_TO_AUTHORIZATION") ?? evaluated[0];
+    const admitted = evaluated.filter((e) => e.decision.decision === "ADMIT_TO_AUTHORIZATION").length;
+    gate.AISA_PRICE_CAP = `policy_max_usd=${opts.maxPriceUsd} admitted=${admitted}/${evaluated.length}`;
+    ev.say("POLICY", `policy_max_usd=${opts.maxPriceUsd} ${evaluated.map((e) => `${e.proposal.operation_id}=${e.decision.decision === "DENY" ? `DENY(${reasonCodes(e.decision)})` : "ADMIT"}`).join(" ")}`);
+    const c = chosen.decision.checks;
+    ev.say("PROPOSAL", `chosen=${chosen.proposal.operation_id} decision=${chosen.decision.decision} arg_keys=[${Object.keys(chosen.proposal.arguments).join(",")}] autofilled=[${chosen.filled.join(",")}] max_price_usd=${chosen.proposal.max_price_usd} schema=${c.schema} price=${c.price.kind}${c.price.usd !== null ? `:${c.price.usd}usd` : ""} within_cap=${c.price_within_cap} read_only=${c.read_only ?? "undeclared"} side_effects=${c.side_effects} availability=${c.availability}${chosen.decision.reasons.length ? ` reasons=${chosen.decision.reasons.slice(0, 4).join(" | ")}` : ""} (proposal only; not executed)`);
+    for (const e of evaluated) ev.say("POLICY", `${e.proposal.operation_id}: ${e.decision.decision}${e.decision.reasons.length ? ` reasons=${e.decision.reasons.slice(0, 6).join(" | ")}` : ""}`, false);
+    ev.fact("proposals", evaluated.map((e) => ({ proposal: e.proposal, autofilled: e.filled, decision: e.decision })));
   }
 
   // 7) لقطة حساب «بعد» — الفرق المحاسبي (أسماء مسارات + فروق فقط)
@@ -644,7 +682,7 @@ export async function runPipeline(opts: CliOptions, env: Record<string, string |
     useCalls.push("account");
     const delta = numericDelta(before, r.payload);
     const billing = delta.changed.filter((c) => /usage|spend|spent|cost|charge|balance|wallet|credit|amount|total/i.test(c.path));
-    ev.say("ACCOUNT", `snapshot after -> ${r.status} numeric_leaves=${delta.leaves} changed=${delta.changed.length} billing_related_changed=${billing.length}${billing.length ? ` [${billing.map((c) => `${c.path}:${c.delta > 0 ? "+" : ""}${c.delta}`).slice(0, 8).join(",")}]` : ""}`);
+    ev.say("ACCOUNT", `snapshot before -> ${beforeStatus} after -> ${r.status} numeric_leaves=${delta.leaves} changed=${delta.changed.length} billing_related_changed=${billing.length}${billing.length ? ` [${billing.map((c) => `${c.path}:${c.delta > 0 ? "+" : ""}${c.delta}`).slice(0, 8).join(",")}]` : ""} (free, read-only; values never printed)`);
     ev.fact("account_delta", { leaves: delta.leaves, changed: delta.changed.slice(0, 20) });
   }
 
