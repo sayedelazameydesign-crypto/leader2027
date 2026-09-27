@@ -415,6 +415,49 @@ export function numericDelta(before: unknown, after: unknown): { leaves: number;
   return { leaves: keys.size, changed };
 }
 
+/**
+ * استخراج تفاصيل العمليات من ردّ `get_details` أيًّا كان شكله: قائمة كائنات تحمل `operation_id`،
+ * أو خريطة مفاتيحها معرّفات العمليات، أو كائن واحد، أو أي تغليف وسيط (`details`/`operations`/`results`…).
+ */
+export function extractDetails(payload: unknown, requestedIds: readonly string[]): OperationDetails[] {
+  const found = new Map<string, OperationDetails>();
+  const toDetails = (r: Record<string, unknown>, id: string): OperationDetails => ({
+    operation_id: id,
+    arguments_schema:
+      (asRecord(r.arguments_schema) as JsonSchemaLike | null) ??
+      (asRecord(r.input_schema) as JsonSchemaLike | null) ??
+      (asRecord(r.parameters) as JsonSchemaLike | null),
+    read_only: typeof r.read_only === "boolean" ? r.read_only : typeof r.readOnly === "boolean" ? r.readOnly : undefined,
+    side_effects: r.side_effects ?? r.sideEffects,
+    availability: r.availability,
+    price: r.price ?? r.pricing ?? r.cost,
+    known_pitfalls: r.known_pitfalls ?? r.pitfalls,
+  });
+  const visit = (v: unknown, depth: number): void => {
+    if (depth > 5) return;
+    if (Array.isArray(v)) {
+      for (const x of v) visit(x, depth + 1);
+      return;
+    }
+    const r = asRecord(v);
+    if (!r) return;
+    if (typeof r.operation_id === "string") {
+      if (!found.has(r.operation_id)) found.set(r.operation_id, toDetails(r, r.operation_id));
+      return;
+    }
+    for (const [k, x] of Object.entries(r)) {
+      const xr = asRecord(x);
+      if (xr && requestedIds.includes(k) && typeof xr.operation_id !== "string") {
+        if (!found.has(k)) found.set(k, toDetails(xr, k));
+        continue;
+      }
+      visit(x, depth + 1);
+    }
+  };
+  visit(payload, 0);
+  return [...found.values()];
+}
+
 // ---------------------------------------------------------------------------
 // CLI — خط الأنابيب الكامل مع دليل runtime
 // ---------------------------------------------------------------------------
@@ -561,26 +604,13 @@ export async function runPipeline(opts: CliOptions, env: Record<string, string |
     return { ok: gate.AISA_DISCOVERY === "VERIFIED", evidence: ev };
   }
 
-  // 4) get_details (مجاني) — العقد الكامل للمرشحين
+  // 4) get_details (مجاني) — العقد الكامل للمرشحين (مستخرج مستقل عن شكل الردّ)
   const d = await callReadOnlyTool(auth, "get_details", { operation_ids: ids });
+  const detailList = extractDetails(d.payload, ids);
   const dp = asRecord(d.payload);
-  const detailList: OperationDetails[] = [];
-  const rawDetails = Array.isArray(dp?.operations) ? dp?.operations : Array.isArray(dp?.details) ? dp?.details : Array.isArray(d.payload) ? d.payload : dp ? [dp] : [];
-  for (const item of rawDetails as unknown[]) {
-    const r = asRecord(item);
-    if (!r || typeof r.operation_id !== "string") continue;
-    detailList.push({
-      operation_id: r.operation_id,
-      arguments_schema: (asRecord(r.arguments_schema) as JsonSchemaLike | null) ?? (asRecord(r.input_schema) as JsonSchemaLike | null),
-      read_only: typeof r.read_only === "boolean" ? r.read_only : undefined,
-      side_effects: r.side_effects,
-      availability: r.availability,
-      price: r.price,
-      known_pitfalls: r.known_pitfalls,
-    });
-  }
+  const dFields = dp ? Object.keys(dp).slice(0, 12).join(",") : Array.isArray(d.payload) ? `array(${d.payload.length})` : "n/a";
   gate.AISA_GET_DETAILS = d.status === 200 && !d.isError && detailList.length > 0 ? "VERIFIED" : `HTTP_${d.status}_parsed=${detailList.length}`;
-  ev.say("DETAILS", `-> ${d.status} isError=${d.isError} parsed=${detailList.length}/${ids.length}`);
+  ev.say("DETAILS", `-> ${d.status} isError=${d.isError} fields=[${dFields}] parsed=${detailList.length}/${ids.length}`);
   for (const det of detailList) {
     const price = normalizePrice(det.price);
     const req = det.arguments_schema?.required ?? [];

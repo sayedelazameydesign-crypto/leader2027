@@ -7,6 +7,7 @@ import {
   callReadOnlyTool,
   createTransport,
   decide,
+  extractDetails,
   normalizePrice,
   numericDelta,
   runPipeline,
@@ -198,6 +199,32 @@ describe("AIsa read-only adapter — policy decision", () => {
     expect(decide(base, { ...proposal, arguments: {} }).reasons.join()).toMatch(/schema: .*query: required/);
     expect(decide({ ...base, arguments_schema: null }, proposal).checks.schema).toBe("missing");
     expect(decide({ ...base, operation_id: "other" }, proposal).reasons.join()).toMatch(/mismatch/);
+  });
+});
+
+describe("AIsa read-only adapter — get_details extractor (shape-agnostic)", () => {
+  const det = { arguments_schema: { type: "object" }, read_only: true, availability: "available", price: 0 };
+  it("list of objects with operation_id", () => {
+    expect(extractDetails({ operations: [{ operation_id: "a", ...det }, { operation_id: "b", ...det }] }, ["a", "b"]).map((d) => d.operation_id)).toEqual(["a", "b"]);
+  });
+  it("map keyed by operation_id (no operation_id field inside)", () => {
+    const out = extractDetails({ details: { a: det, b: det } }, ["a", "b"]);
+    expect(out.map((d) => d.operation_id).sort()).toEqual(["a", "b"]);
+    expect(out[0].read_only).toBe(true);
+  });
+  it("single object, root array, nested wrappers, and field aliases", () => {
+    expect(extractDetails({ operation_id: "a", ...det }, ["a"])).toHaveLength(1);
+    expect(extractDetails([{ operation_id: "a", ...det }], ["a"])).toHaveLength(1);
+    expect(extractDetails({ data: { results: [{ operation_id: "a", ...det }] } }, ["a"])).toHaveLength(1);
+    const alias = extractDetails({ operation_id: "a", input_schema: { type: "object", required: ["q"] }, readOnly: true, pricing: { usd: 0.5 }, pitfalls: ["x"] }, ["a"])[0];
+    expect(alias.arguments_schema?.required).toEqual(["q"]);
+    expect(alias.read_only).toBe(true);
+    expect(alias.price).toEqual({ usd: 0.5 });
+    expect(alias.known_pitfalls).toEqual(["x"]);
+  });
+  it("ignores unrelated payloads and de-duplicates", () => {
+    expect(extractDetails({ note: "nothing here", count: 3 }, ["a"])).toEqual([]);
+    expect(extractDetails([{ operation_id: "a", ...det }, { operation_id: "a", ...det }], ["a"])).toHaveLength(1);
   });
 });
 

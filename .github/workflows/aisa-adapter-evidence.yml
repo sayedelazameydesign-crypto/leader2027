@@ -12,7 +12,12 @@ on:
       query:
         description: "وصف المهمة بلغة طبيعية لـsearch"
         required: false
-        default: "documentation page that teaches AI coding agents how to install and use AIsa API skills via the AIsa CLI"
+        default: "extract the readable text content of a public documentation web page given its URL"
+        type: string
+      category:
+        description: "تقييد البحث بفئة (seo|finance|social|search|sales|mail) — فارغ = الكل"
+        required: false
+        default: "search"
         type: string
       max_price_usd:
         description: "سقف السياسة بالدولار لقرار الاقتراح (لا تنفيذ على أي حال)"
@@ -49,11 +54,12 @@ jobs:
       - name: "connect / authenticate / search / get_details / validate / price-cap / evidence"
         env:
           AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
-          QUERY: ${{ inputs.query || 'documentation page that teaches AI coding agents how to install and use AIsa API skills via the AIsa CLI' }}
+          QUERY: ${{ inputs.query || 'extract the readable text content of a public documentation web page given its URL' }}
+          CATEGORY: ${{ inputs.category || 'search' }}
           MAX_PRICE_USD: ${{ inputs.max_price_usd || '0.01' }}
         run: |
           node integrations/aisa/adapter.ts \
-            --query "$QUERY" --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
+            --query "$QUERY" ${CATEGORY:+--category "$CATEGORY"} --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
             --out /tmp/aisa-adapter-evidence.txt --json /tmp/aisa-adapter-evidence.json
 
       - name: "Job summary (redacted evidence)"
