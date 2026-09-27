@@ -96,7 +96,7 @@
 
 ## 5. ترتيب البناء (ابنِ أولًا ما يفتح الطريق)
 
-### P0 — V5.3 المنسّق HTTP (التالي فورًا)
+### P0 — V5.3 المنسّق HTTP (✅ نُفِّذ — عقد `docs/contract-v53.md` + 6 مسارات + V53_GATE خضراء)
 - **النطاق:** مسارات فوق `lib/workers` فقط: `claim · heartbeat · release · execute · batch-status` + بث حالة (SSE أو polling موثّق) + مصنع مقابض `() => Repos` طازجة لكل طلب (صحيح بالبناء على الملف).
 - **الهوية:** هوية الـworker عبر الجلسات/الأدوار القائمة — لا رموز مشتركة جديدة بلا توثيق.
 - **اللاهدف:** لا واجهة، لا connectors جديدة، لا تعديل في `lib/tasks` أو `lib/authorization` أو آلة GEN-3 (تجميد الأجيال).
@@ -121,7 +121,7 @@
 
 ---
 
-## 6. هيكل V5.3 المقترح (للاعتماد قبل البناء)
+## 6. هيكل V5.3 (✅ نُفِّذ كما هو + `POST /api/orchestrate/batches`)
 
 ```text
 POST /api/orchestrate/claims     { taskId, workerId }        → claimed | denied

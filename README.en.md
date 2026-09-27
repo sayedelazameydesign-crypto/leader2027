@@ -9,7 +9,7 @@
 
 ## Status
 
-**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green****. · GEN-4: distributed execution via leases/fencing/exactly-once · zero edits in lib/tasks & lib/authorization · GEN4_GATE green {LAST_UPDATED}
+**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green****. · GEN-4: distributed execution via leases/fencing/exactly-once · zero edits in lib/tasks & lib/authorization · GEN4_GATE green {LAST_UPDATED}**. · V5.3: HTTP orchestrator (claim/heartbeat/release/free-execute/batch/status) · zero edits in lib/tasks, lib/workers & lib/authorization · V53_GATE green {LAST_UPDATED}
 
 | Slice | Description | State | Evidence |
 | --- | --- | --- | --- |
@@ -116,6 +116,12 @@ npm ci
 | `POST` | `/api/tasks/:id/resume` | Resume with grant ⇒ READY or DENY (tasks:manage) |
 | `POST` | `/api/tasks/approvals/:id` | Human decision approved/rejected (users:manage) |
 | `GET` | `/api/debug/headers` | Edge diagnostic route — reflects only 3 IP headers; 404 unless L27_DEBUG_HEADERS=1 (live-verification phase — never enabled in production after T4) |
+| `POST` | `/api/orchestrate/claims` | Claim execution ownership (V5.3) |
+| `POST` | `/api/orchestrate/heartbeats` | Renew the lease via heartbeat (V5.3) |
+| `POST` | `/api/orchestrate/releases` | Voluntarily release ownership (V5.3) |
+| `POST` | `/api/orchestrate/steps` | Execute one free step (V5.3) |
+| `POST` | `/api/orchestrate/batches` | Ordered execution batch (V5.3) |
+| `GET` | `/api/orchestrate/tasks/:id/status` | Task status snapshot for polling (V5.3) |
 
 Every mutation writes an AuditEvent · `password_hash` never appears in any response.
 
@@ -153,6 +159,8 @@ tests/        unit / integration / smoke
 | `project.manifest.json` | **Single source of truth** — the README is generated from it |
 | `lib/mcp/` | Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1) |
 | `lib/tasks/` | GEN-3 engine: state machine, hashing, resume, grants, GEN3_GATE — on Repos only |
+| `lib/workers/` | GEN-4: distributed coordinator (leases/fencing/exactly-once) |
+| `lib/orchestrate/` | V5.3: HTTP orchestrator service + gate |
 
 ## Environment Variables
 
@@ -181,9 +189,9 @@ tests/        unit / integration / smoke
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **335/335 (12 skipped: pg-live)** |
+| `tests` | `npm test` | **346/346 (12 skipped: pg-live)** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **52/52** |
+| `smoke` | `npm run smoke` | **58/58** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -219,6 +227,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | GEN-3 contract (LOCKED) — Durable Task Engine |
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | GEN-4 contract (LOCKED) |
 | [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | CeliaOS 2026 final blueprint (draft) |
+| [`docs/contract-v53.md`](docs/contract-v53.md) | V5.3 contract (LOCKED) |
 
 ## Explicitly Out of Scope
 

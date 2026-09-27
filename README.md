@@ -9,7 +9,7 @@
 
 ## الحالة
 
-**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء****. · GEN-4: تنفيذ موزّع بإيجار/fencing/exactly-once · صفر تعديل في lib/tasks وlib/authorization · GEN4_GATE خضراء {LAST_UPDATED}
+**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء****. · GEN-4: تنفيذ موزّع بإيجار/fencing/exactly-once · صفر تعديل في lib/tasks وlib/authorization · GEN4_GATE خضراء {LAST_UPDATED}**. · V5.3: منسّق HTTP (مطالبة/نبض/تحرير/تنفيذ مجاني/دفعات/حالة) · صفر تعديل في lib/tasks وlib/workers وlib/authorization · V53_GATE خضراء {LAST_UPDATED}
 
 | الشريحة | الوصف | الحالة | الدليل |
 | --- | --- | --- | --- |
@@ -116,6 +116,12 @@ npm ci
 | `POST` | `/api/tasks/:id/resume` | استئناف بمنح ⇒ READY أو DENY (tasks:manage) |
 | `POST` | `/api/tasks/approvals/:id` | قرار بشري approved/rejected (users:manage) |
 | `GET` | `/api/debug/headers` | route تشخيص الحافة — يعكس 3 ترويسات IP فقط؛ 404 إلا مع L27_DEBUG_HEADERS=1 (مرحلة التحقق الحيّ — لا يُفعَّل في الإنتاج بعد T4) |
+| `POST` | `/api/orchestrate/claims` | المطالبة بملكية التنفيذ (V5.3) |
+| `POST` | `/api/orchestrate/heartbeats` | تجديد الـlease بالنبض (V5.3) |
+| `POST` | `/api/orchestrate/releases` | تسليم الملكية طوعًا (V5.3) |
+| `POST` | `/api/orchestrate/steps` | تنفيذ خطوة مجانية (V5.3) |
+| `POST` | `/api/orchestrate/batches` | دفعة تنفيذية مرتّبة (V5.3) |
+| `GET` | `/api/orchestrate/tasks/:id/status` | لقطة حالة المهمة للاستطلاع (V5.3) |
 
 كل mutation ينشئ AuditEvent · `password_hash` لا يظهر في أي استجابة.
 
@@ -153,6 +159,8 @@ tests/        unit / integration / smoke
 | `project.manifest.json` | **مصدر الحقيقة الوحيد** — README مُولَّد منه |
 | `lib/mcp/` | بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1) |
 | `lib/tasks/` | محرك GEN-3: آلة الحالة، التجزئة، الاستئناف، المنح، GEN3_GATE — فوق Repos فقط |
+| `lib/workers/` | GEN-4: المنسّق الموزّع (إيجار/fencing/exactly-once) |
+| `lib/orchestrate/` | V5.3: خدمة المنسّق HTTP + البوابة |
 
 ## المتغيرات البيئية
 
@@ -181,9 +189,9 @@ tests/        unit / integration / smoke
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **335/335 (12 skipped: pg-live)** |
+| `tests` | `npm test` | **346/346 (12 skipped: pg-live)** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **52/52** |
+| `smoke` | `npm run smoke` | **58/58** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI يشغّل هذه البوابات كلها على كل push/PR — انظر [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -219,6 +227,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | عقد GEN-3 (LOCKED) — محرك المهام الدائم |
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | عقد GEN-4 (LOCKED) |
 | [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | مخطط CeliaOS النهائي 2026 (مسودة) |
+| [`docs/contract-v53.md`](docs/contract-v53.md) | عقد V5.3 (LOCKED) |
 
 ## خارج النطاق (صراحة)
 
