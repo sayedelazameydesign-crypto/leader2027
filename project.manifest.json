@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "334/334 (12 skipped: pg-live)"
+      "expected": "335/335 (12 skipped: pg-live)"
     },
     {
       "id": "build",

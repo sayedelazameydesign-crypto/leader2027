@@ -9,11 +9,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createFileJsonRepos } from "@/lib/persistence/file-json";
 import { createMemoryRepos } from "@/lib/persistence/memory";
-import type { TaskActor } from "@/lib/tasks/types";
+import { PAID_OPERATION, type TaskActor } from "@/lib/tasks/types";
 import { ExecutionCoordinator } from "@/lib/workers/coordinator";
 import { formatGen4Gate, runGen4SelfChecks } from "@/lib/workers/gate";
 
 const T0 = Date.parse("2026-09-27T00:00:00.000Z");
+const HUMAN: TaskActor = { id: "user-manager", kind: "human", role: "CAMPAIGN_MANAGER" };
 const SYSTEM: TaskActor = { id: "test", kind: "system" };
 const TTL = 30_000;
 const MARGIN = 5_000;
@@ -53,6 +54,47 @@ function toReady(coord: ExecutionCoordinator, goal: string): string {
   );
   engine.markReady(task.id, SYSTEM);
   return task.id;
+}
+
+function approvePaid(coord: ExecutionCoordinator, taskId: string, cap = 50): void {
+  const engine = coord.engine;
+  const proposal = { operation: PAID_OPERATION, costCap: cap };
+  const { approval } = engine.requestApproval(
+    taskId,
+    { stepId: "pay", operation: PAID_OPERATION, costCap: cap, proposal },
+    SYSTEM,
+  );
+  engine.decideApproval(approval.id, { decision: "approved", by: HUMAN });
+  engine.resume(
+    taskId,
+    { approvalId: approval.id, operation: PAID_OPERATION, costCap: cap, proposal },
+    SYSTEM,
+  );
+}
+
+function paidTask(coord: ExecutionCoordinator, goal: string): string {
+  const engine = coord.engine;
+  const task = engine.createTask(goal, SYSTEM);
+  engine.understand(task.id, { brief: "w" }, SYSTEM);
+  engine.plan(
+    task.id,
+    [
+      { id: "pay", operation: PAID_OPERATION, costCap: 50 },
+      { id: "s2", operation: "summarize", costCap: 0 },
+    ],
+    SYSTEM,
+  );
+  engine.markReady(task.id, SYSTEM);
+  approvePaid(coord, task.id);
+  return task.id;
+}
+
+function freshCoord(file: string): ExecutionCoordinator {
+  return new ExecutionCoordinator(createFileJsonRepos(file, false), {
+    now: () => t,
+    leaseTtlMs: TTL,
+    heartbeatMarginMs: MARGIN,
+  });
 }
 
 describe("workers-distributed: مقبضان على ملف واحد", () => {
@@ -145,6 +187,67 @@ describe("workers-distributed: مقبضان على ملف واحد", () => {
     const done = heir.engine.conclude(id, { alternativesAvailable: false }, SYSTEM);
     expect(done.status).toBe(refDone.status);
     expect(done.evidenceChainHead).toBe(refDone.evidenceChainHead);
+  });
+
+  it("فعل مدفوع على الملف: موت→استرداد ⇒ النداء مرة واحدة + نفس دليل المرجع", () => {
+    const file = path.join(dir, "paid.json");
+    const refFile = path.join(dir, "paid-ref.json");
+
+    // المرجع: تشغيل متواصل على ملف مستقل بنفس الإيصال
+    let refCalls = 0;
+    const ref = freshCoord(refFile);
+    const refId = paidTask(ref, "مرجع مدفوع");
+    expect(ref.claim(refId, "worker-ref").status).toBe("claimed");
+    const refPay = ref.executeStep(refId, "worker-ref", "pay", {
+      verdict: "verified",
+      call: () => {
+        refCalls += 1;
+        return { receipt: "r-1" };
+      },
+    });
+    expect(refPay.status).toBe("ok");
+    const refS2 = ref.executeStep(refId, "worker-ref", "s2", {
+      verdict: "verified",
+      observation: { step: "s2" },
+      evidence: { step: "s2" },
+    });
+    expect(refS2.status).toBe("ok");
+    const refDone = ref.engine.conclude(refId, { alternativesAvailable: false }, SYSTEM);
+
+    // المقتول: خطوة مدفوعة كاملة ثم موت (مقبض مستقل على ملف مستقل)
+    let calls = 0;
+    const call = (): unknown => {
+      calls += 1;
+      return { receipt: "r-1" };
+    };
+    const a = freshCoord(file);
+    const id = paidTask(a, "موت مدفوع");
+    expect(a.claim(id, "worker-a").status).toBe("claimed");
+    const first = a.executeStep(id, "worker-a", "pay", { verdict: "verified", call });
+    expect(first.status).toBe("ok");
+    t += TTL + 1; // الموت: لا نبض ولا تسليم
+
+    // الوريث بمقبض جديد تمامًا (عملية أخرى متسلسلة)
+    const heir = freshCoord(file);
+    const c2 = heir.claim(id, "worker-b");
+    expect(c2.status).toBe("claimed");
+    if (c2.status === "claimed") expect(c2.reclaimed).toBe(true);
+    // إعادة الخطوة المدفوعة ⇒ تخطي من السجل بلا نداء (exactly-once على الملف)
+    const retry = heir.executeStep(id, "worker-b", "pay", { verdict: "verified", call });
+    expect(retry.status).toBe("already-verified");
+    expect(calls).toBe(1);
+    const s2 = heir.executeStep(id, "worker-b", "s2", {
+      verdict: "verified",
+      observation: { step: "s2" },
+      evidence: { step: "s2" },
+    });
+    expect(s2.status).toBe("ok");
+    const done = heir.engine.conclude(id, { alternativesAvailable: false }, SYSTEM);
+    expect(done.status).toBe("COMPLETED");
+    expect(done.status).toBe(refDone.status);
+    expect(done.evidenceChainHead).toBe(refDone.evidenceChainHead);
+    expect(heir.engine.verifyChain(id)).toBe(true);
+    expect(refCalls).toBe(1);
   });
 
   it("توافق قدماء: ملف بلا مفاتيح GEN-4 ⇒ المطالبة تعمل", () => {

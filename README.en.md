@@ -181,7 +181,7 @@ tests/        unit / integration / smoke
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **334/334 (12 skipped: pg-live)** |
+| `tests` | `npm test` | **335/335 (12 skipped: pg-live)** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **52/52** |
 | `ci` | `GitHub Actions` | **PASS** |
