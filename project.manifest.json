@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**."
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء**",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green**"
   },
   "principles": {
     "ar": [
@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "237/237"
+      "expected": "298/298"
     },
     {
       "id": "build",
@@ -105,7 +105,7 @@
     {
       "id": "smoke",
       "script": "npm run smoke",
-      "expected": "49/49"
+      "expected": "52/52"
     },
     {
       "id": "ci",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
-      "en": "237 unit/integration (166 existing + 71 new — including 8 live against Postgres: storage contract + distributed limiter)"
+      "ar": "298 unit/integration (237 قائمة + 61 جديدًا — GEN-3: آلة حالة + Round-trip ملف + مصافحة API + عقد تخزين موسَّع)",
+      "en": "298 unit/integration (237 existing + 61 new — GEN-3: state machine + file Round-trip + API handshake + extended storage contract)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -170,7 +170,8 @@
       "**استبدال ساخن**: نسخة جديدة تحلّ محل القديمة بلا إعادة تشغيل وبلا فقدان إعدادات",
       "**مَقابض تعديل لكل ركن**: تعديل سلوك ركن واحد من الواجهة/الـAPI بلا نشر وبلا أثر على غيره",
       "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد",
-      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)"
+      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)",
+      "**محرك مهام دائم (GEN-3)**: آلة حالة بنيوية + checkpoints مسلسلة + موافقات معلَّقة بمنح أحادية + استئناف بعد القتل"
     ],
     "en": [
       "Source-aware people records — with no political-preference fields",
@@ -186,7 +187,8 @@
       "**Hot swap**: a newer version replaces the old one with no restart and no lost configuration",
       "**Per-corner knobs**: change one corner's behavior from the UI/API with no redeploy and no effect on others",
       "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use",
-      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)"
+      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)",
+      "**Durable task engine (GEN-3)**: structural state machine + hash-chained checkpoints + pending approvals with single-use grants + resume-after-kill"
     ]
   },
   "levels": {
@@ -371,6 +373,22 @@
         "en": "View audit"
       },
       "group": "admin"
+    },
+    {
+      "id": "tasks:view",
+      "label": {
+        "ar": "عرض المهام",
+        "en": "View tasks"
+      },
+      "group": "view"
+    },
+    {
+      "id": "tasks:manage",
+      "label": {
+        "ar": "إدارة المهام",
+        "en": "Manage tasks"
+      },
+      "group": "write"
     }
   ],
   "matrix": {
@@ -388,7 +406,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "CAMPAIGN_ADMIN": [
       "dashboard:view",
@@ -404,7 +424,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "CAMPAIGN_MANAGER": [
       "dashboard:view",
@@ -420,7 +442,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "FIELD_COORDINATOR": [
       "dashboard:view",
@@ -434,7 +458,9 @@
       "reports:create",
       "reports:update_notes",
       "reports:update_status",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "FIELD_WORKER": [
       "dashboard:view",
@@ -442,13 +468,15 @@
       "volunteers:view",
       "reports:view",
       "reports:create",
-      "reports:update_notes"
+      "reports:update_notes",
+      "tasks:view"
     ],
     "VIEWER": [
       "dashboard:view",
       "people:view",
       "volunteers:view",
-      "reports:view"
+      "reports:view",
+      "tasks:view"
     ]
   },
   "api": [
@@ -621,6 +649,46 @@
       }
     },
     {
+      "method": "GET/POST",
+      "path": "/api/tasks",
+      "note": {
+        "ar": "المهام الدائمة GEN-3: قائمة / إنشاء",
+        "en": "GEN-3 durable tasks: list / create"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id",
+      "note": {
+        "ar": "تفاصيل مهمة + checkpoints + سلامة السلسلة",
+        "en": "Task detail + checkpoints + chain integrity"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/approvals",
+      "note": {
+        "ar": "طلب موافقة ⇒ WAITING_APPROVAL (tasks:manage)",
+        "en": "Request approval ⇒ WAITING_APPROVAL (tasks:manage)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/resume",
+      "note": {
+        "ar": "استئناف بمنح ⇒ READY أو DENY (tasks:manage)",
+        "en": "Resume with grant ⇒ READY or DENY (tasks:manage)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/approvals/:id",
+      "note": {
+        "ar": "قرار بشري approved/rejected (users:manage)",
+        "en": "Human decision approved/rejected (users:manage)"
+      }
+    },
+    {
       "method": "GET",
       "path": "/api/debug/headers",
       "note": {
@@ -749,6 +817,13 @@
       "note": {
         "ar": "بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1)",
         "en": "Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1)"
+      }
+    },
+    {
+      "path": "lib/tasks/",
+      "note": {
+        "ar": "محرك GEN-3: آلة الحالة، التجزئة، الاستئناف، المنح، GEN3_GATE — فوق Repos فقط",
+        "en": "GEN-3 engine: state machine, hashing, resume, grants, GEN3_GATE — on Repos only"
       }
     }
   ],
@@ -989,6 +1064,13 @@
       "label": {
         "ar": "عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1",
         "en": "VS5 contract (LOCKED) — Agent Gateway · V5.1"
+      }
+    },
+    {
+      "path": "docs/contract-gen3.md",
+      "label": {
+        "ar": "عقد GEN-3 (LOCKED) — محرك المهام الدائم",
+        "en": "GEN-3 contract (LOCKED) — Durable Task Engine"
       }
     }
   ],

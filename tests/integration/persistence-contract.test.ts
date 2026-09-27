@@ -89,6 +89,90 @@ function contractSuite(name: string, factory: () => Repos) {
       });
       expect(repos.audit.list()).toHaveLength(1);
     });
+
+    it("GEN-3 tasks: create/read/update/list", () => {
+      const task = repos.tasks.createTask({
+        goal: "عقد التخزين",
+        status: "CREATED",
+        plan: [],
+        checkpointHead: "",
+        evidenceChainHead: "EVIDENCE-GENESIS",
+        createdAt: now,
+        updatedAt: now,
+      });
+      expect(task.id).toBeTruthy();
+      expect(repos.tasks.getTask(task.id)?.goal).toBe("عقد التخزين");
+      expect(repos.tasks.getTask("missing")).toBeNull();
+      expect(repos.tasks.updateTask(task.id, { status: "READY" })?.status).toBe("READY");
+      expect(repos.tasks.updateTask("missing", {})).toBeNull();
+      expect(repos.tasks.listTasks()).toHaveLength(1);
+    });
+
+    it("GEN-3 tasks: checkpoints/approvals/grants/artifacts", () => {
+      const task = repos.tasks.createTask({
+        goal: "عقد الملحقات",
+        status: "CREATED",
+        plan: [],
+        checkpointHead: "",
+        evidenceChainHead: "EVIDENCE-GENESIS",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const cp = repos.tasks.appendCheckpoint({
+        taskId: task.id,
+        seq: 0,
+        state: "CREATED",
+        stepId: null,
+        context: {},
+        prevHash: "GENESIS",
+        hash: "h",
+        evidenceHead: "E",
+        at: now,
+      });
+      expect(cp.id).toBeTruthy();
+      expect(repos.tasks.listCheckpoints(task.id)).toHaveLength(1);
+      expect(repos.tasks.listCheckpoints("other")).toHaveLength(0);
+
+      const approval = repos.tasks.createApproval({
+        taskId: task.id,
+        stepId: "s1",
+        proposalHash: "p",
+        operation: "op",
+        costCap: 0,
+        status: "pending",
+        expiresAt: now,
+        decidedBy: null,
+        decidedAt: null,
+        createdAt: now,
+      });
+      expect(repos.tasks.getApproval(approval.id)?.status).toBe("pending");
+      expect(repos.tasks.updateApproval(approval.id, { status: "approved" })?.status).toBe("approved");
+      expect(repos.tasks.listApprovals(task.id)).toHaveLength(1);
+
+      const grant = repos.tasks.createGrant({
+        approvalId: approval.id,
+        taskId: task.id,
+        stepId: "s1",
+        proposalHash: "p",
+        operation: "op",
+        costCap: 0,
+        createdAt: now,
+        consumedAt: null,
+      });
+      expect(repos.tasks.getGrantByApproval(approval.id)?.id).toBe(grant.id);
+      expect(repos.tasks.updateGrant(grant.id, { consumedAt: now })?.consumedAt).toBe(now);
+      expect(repos.tasks.listGrants(task.id)).toHaveLength(1);
+
+      repos.tasks.createArtifact({
+        taskId: task.id,
+        stepId: "s1",
+        type: "note",
+        ref: "r",
+        evidenceHash: "e",
+        createdAt: now,
+      });
+      expect(repos.tasks.listArtifacts(task.id)).toHaveLength(1);
+    });
   });
 }
 

@@ -9,7 +9,7 @@
 
 ## الحالة
 
-**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.
+**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء**
 
 | الشريحة | الوصف | الحالة | الدليل |
 | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ npm ci
 | `npm run dev` | تطوير على http://localhost:3000 |
 | `npm run build` | بناء إنتاجي |
 | `npm run start` | إنتاج على 0.0.0.0:3000 |
-| `npm run test` | 237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع) |
+| `npm run test` | 298 unit/integration (237 قائمة + 61 جديدًا — GEN-3: آلة حالة + Round-trip ملف + مصافحة API + عقد تخزين موسَّع) |
 | `npm run smoke` | 49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP |
 | `npm run typecheck` | فحص TypeScript بلا إخراج |
 | `npm run readme:generate` | توليد README من الـmanifest |
@@ -76,6 +76,8 @@ npm ci
 | إدارة المستخدمين — `users:manage` | ✅ | ✅ | ✅ | — | — | — |
 | إدارة الإعدادات — `settings:manage` | ✅ | ✅ | ✅ | — | — | — |
 | عرض التدقيق — `audit:view` | ✅ | ✅ | ✅ | ✅ | — | — |
+| عرض المهام — `tasks:view` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| إدارة المهام — `tasks:manage` | ✅ | ✅ | ✅ | ✅ | — | — |
 
 ### قواعد الجلسة
 
@@ -108,6 +110,11 @@ npm ci
 | `GET` | `/api/kernel/cells` | كتالوج الأنوية والأدوات للوكلاء |
 | `POST` | `/api/kernel/actions` | تنفيذ أداة / اعتماد أو رفض موافقة |
 | `POST` | `/api/mcp` | بوابة الوكلاء — سطح MCP للقراءة (JSON-RPC 2.0): initialize/ping/tools/list/tools/call — الكتابة مرفوضة قبل التنفيذ + موثّقة |
+| `GET/POST` | `/api/tasks` | المهام الدائمة GEN-3: قائمة / إنشاء |
+| `GET` | `/api/tasks/:id` | تفاصيل مهمة + checkpoints + سلامة السلسلة |
+| `POST` | `/api/tasks/:id/approvals` | طلب موافقة ⇒ WAITING_APPROVAL (tasks:manage) |
+| `POST` | `/api/tasks/:id/resume` | استئناف بمنح ⇒ READY أو DENY (tasks:manage) |
+| `POST` | `/api/tasks/approvals/:id` | قرار بشري approved/rejected (users:manage) |
 | `GET` | `/api/debug/headers` | route تشخيص الحافة — يعكس 3 ترويسات IP فقط؛ 404 إلا مع L27_DEBUG_HEADERS=1 (مرحلة التحقق الحيّ — لا يُفعَّل في الإنتاج بعد T4) |
 
 كل mutation ينشئ AuditEvent · `password_hash` لا يظهر في أي استجابة.
@@ -145,6 +152,7 @@ tests/        unit / integration / smoke
 | `tests/` | unit + integration + smoke (يُشغَّل في CI ضد next start) |
 | `project.manifest.json` | **مصدر الحقيقة الوحيد** — README مُولَّد منه |
 | `lib/mcp/` | بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1) |
+| `lib/tasks/` | محرك GEN-3: آلة الحالة، التجزئة، الاستئناف، المنح، GEN3_GATE — فوق Repos فقط |
 
 ## المتغيرات البيئية
 
@@ -173,9 +181,9 @@ tests/        unit / integration / smoke
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **237/237** |
+| `tests` | `npm test` | **298/298** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **49/49** |
+| `smoke` | `npm run smoke` | **52/52** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI يشغّل هذه البوابات كلها على كل push/PR — انظر [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -208,6 +216,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/deploy-free-roadmap.md`](docs/deploy-free-roadmap.md) | مخطط الإنجاز والمتبقي حتى النشر المجاني (بدون بطاقة) |
 | [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية |
 | [`docs/contract-vs5.md`](docs/contract-vs5.md) | عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1 |
+| [`docs/contract-gen3.md`](docs/contract-gen3.md) | عقد GEN-3 (LOCKED) — محرك المهام الدائم |
 
 ## خارج النطاق (صراحة)
 

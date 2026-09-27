@@ -12,6 +12,12 @@ import type {
   Region,
   RegionsRepo,
   Repos,
+  TaskApprovalRecord,
+  TaskArtifactRecord,
+  TaskCheckpoint,
+  TaskGrantRecord,
+  TaskRecord,
+  TasksRepo,
   Team,
   TeamsRepo,
   User,
@@ -32,6 +38,12 @@ export type Store = {
   campaign: Campaign | null;
   cycles: ElectionCycle[];
   audit: AuditEvent[];
+  /** GEN-3: المهام الدائمة — تُدمَج تلقائيًا في file/postgres عبر نفس المستند. */
+  tasks: TaskRecord[];
+  taskCheckpoints: TaskCheckpoint[];
+  taskApprovals: TaskApprovalRecord[];
+  taskGrants: TaskGrantRecord[];
+  taskArtifacts: TaskArtifactRecord[];
 };
 
 export function emptyStore(): Store {
@@ -45,6 +57,11 @@ export function emptyStore(): Store {
     campaign: null,
     cycles: [],
     audit: [],
+    tasks: [],
+    taskCheckpoints: [],
+    taskApprovals: [],
+    taskGrants: [],
+    taskArtifacts: [],
   };
 }
 
@@ -234,7 +251,80 @@ export function reposFromStore(store: Store): Repos {
     },
   };
 
-  return { people, volunteers, reports, users, regions, teams, campaign, cycles, audit };
+  const tasks: TasksRepo = {
+    createTask(task) {
+      const created: TaskRecord = { ...task, id: randomUUID() };
+      store.tasks.push(created);
+      return created;
+    },
+    getTask(id) {
+      return store.tasks.find((t) => t.id === id) ?? null;
+    },
+    updateTask(id, patch) {
+      const idx = store.tasks.findIndex((t) => t.id === id);
+      if (idx === -1) return null;
+      store.tasks[idx] = { ...store.tasks[idx], ...patch, id };
+      return store.tasks[idx];
+    },
+    listTasks() {
+      return [...store.tasks];
+    },
+    appendCheckpoint(cp) {
+      const created: TaskCheckpoint = { ...cp, id: randomUUID() };
+      store.taskCheckpoints.push(created);
+      return created;
+    },
+    listCheckpoints(taskId) {
+      return store.taskCheckpoints.filter((c) => c.taskId === taskId).sort((a, b) => a.seq - b.seq);
+    },
+    createApproval(approval) {
+      const created: TaskApprovalRecord = { ...approval, id: randomUUID() };
+      store.taskApprovals.push(created);
+      return created;
+    },
+    getApproval(id) {
+      return store.taskApprovals.find((a) => a.id === id) ?? null;
+    },
+    updateApproval(id, patch) {
+      const idx = store.taskApprovals.findIndex((a) => a.id === id);
+      if (idx === -1) return null;
+      store.taskApprovals[idx] = { ...store.taskApprovals[idx], ...patch, id };
+      return store.taskApprovals[idx];
+    },
+    listApprovals(taskId) {
+      return store.taskApprovals.filter((a) => a.taskId === taskId);
+    },
+    createGrant(grant) {
+      const created: TaskGrantRecord = { ...grant, id: randomUUID() };
+      store.taskGrants.push(created);
+      return created;
+    },
+    getGrant(id) {
+      return store.taskGrants.find((g) => g.id === id) ?? null;
+    },
+    getGrantByApproval(approvalId) {
+      return store.taskGrants.find((g) => g.approvalId === approvalId) ?? null;
+    },
+    updateGrant(id, patch) {
+      const idx = store.taskGrants.findIndex((g) => g.id === id);
+      if (idx === -1) return null;
+      store.taskGrants[idx] = { ...store.taskGrants[idx], ...patch, id };
+      return store.taskGrants[idx];
+    },
+    listGrants(taskId) {
+      return store.taskGrants.filter((g) => g.taskId === taskId);
+    },
+    createArtifact(artifact) {
+      const created: TaskArtifactRecord = { ...artifact, id: randomUUID() };
+      store.taskArtifacts.push(created);
+      return created;
+    },
+    listArtifacts(taskId) {
+      return store.taskArtifacts.filter((a) => a.taskId === taskId);
+    },
+  };
+
+  return { people, volunteers, reports, users, regions, teams, campaign, cycles, audit, tasks };
 }
 
 export function createMemoryRepos(initial?: Store): Repos {

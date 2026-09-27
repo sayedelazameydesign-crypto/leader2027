@@ -103,5 +103,48 @@ export function withWriteThrough(repos: Repos, flush: () => void): Repos {
         return created;
       },
     },
+    tasks: {
+      ...repos.tasks,
+      createTask(task) {
+        const created = repos.tasks.createTask(task);
+        flush();
+        return created;
+      },
+      updateTask(id, patch) {
+        const updated = repos.tasks.updateTask(id, patch);
+        flush();
+        return updated;
+      },
+      appendCheckpoint(cp) {
+        const created = repos.tasks.appendCheckpoint(cp);
+        flush();
+        return created;
+      },
+      createApproval(approval) {
+        const created = repos.tasks.createApproval(approval);
+        flush();
+        return created;
+      },
+      updateApproval(id, patch) {
+        const updated = repos.tasks.updateApproval(id, patch);
+        flush();
+        return updated;
+      },
+      createGrant(grant) {
+        const created = repos.tasks.createGrant(grant);
+        flush();
+        return created;
+      },
+      updateGrant(id, patch) {
+        const updated = repos.tasks.updateGrant(id, patch);
+        flush();
+        return updated;
+      },
+      createArtifact(artifact) {
+        const created = repos.tasks.createArtifact(artifact);
+        flush();
+        return created;
+      },
+    },
   };
 }
