@@ -74,7 +74,7 @@
 | البند | المصدر المُبلَّغ | الملاحظة |
 |---|---|---|
 | `new-new`: واجهة دردشة + مخطط DB | سياق الجلسات | المستودع **موجود** (آخر تحديث 17 أغسطس 2026 — راكد ~6 أسابيع)، الشكل العام (client/server/shared + drizzle + Dockerfile) متسق مع الوصف. **لم يُدقَّق محتواه هنا.** |
-| `gethip_agen`: ApprovalStore + SQLite + نقاط `/api/approvals` | سياق الجلسات | ⚠️ **غير قابل للحل عبر API** (`Could not resolve to a Repository`) — محذوف أو مُعاد تسميته أو خاص. كل الادعاءات المرتبطة به (17 اختبارًا، commits `87e817c`/`45aeb7f`) **غير قابلة للتحقق حاليًا**. |
+| `gethip_agen`: ApprovalStore + Turso/JWT + نقاط `/api/approvals` | سياق الجلسات + **تحقق مباشر** | ✅ **موجود وpublic** (آخر تحديث 27 سبتمبر 2026، `main` عند `289d28c`، الفروع: `main` + `arena/01a06cb9-gethip-agen` فقط). تدقيق الشجرة (131 ملفًا): **صفر أثر** لـleader2027/GEN/NEXA/orchestrate — ريبو مختلف فعلًا. ⚠️ **تصحيح:** ادعاء سابق في هذه الوثيقة ("غير قابل للحل/محذوف") كان **غلطًا** — فشل API عابر قُرئ خطأً كحذف. `packages/approval-store` موجود شكليًا؛ مزاعم Turso/JWT والـ17 اختبارًا ما زالت 📋 بانتظار تدقيق. |
 | v1.0.0 "GO" + شواهد `certification/` + فروع `arena/01a0a9e0-12pro` | سياق الجلسات | لا أثر لها في مساحة العمل. تُعامل كتاريخ مشروع لا كحالة راهنة مؤكدة. |
 | 173/173 اختبارًا (B0–B2.5) · 82 capability · موفّرون (Gemini/mock/OpenRouter) · 4 connectors | سياق الجلسات | لا أثر في `leader2027` (لا مزوّد LLM إطلاقًا في الشجرة — فحص مباشر). إن وُجدت ففي شجرة أخرى غير حاضرة. |
 | M10.x الموزّع (Redis/Redlock) · Handbook 53% · MessageBusV4 | سياق الجلسات | تاريخ تطوري؛ GEN-4 الحالي **استبدل** مسار Redis بقرار D2 الموثق (صفوف Lease بدل الأقفال). |
@@ -90,7 +90,7 @@
 2. **Agentic Workspace** — واجهة `leader2027` الحالية إدارة حملات (login/dashboard) لا مساحة مهمات (لا Mission/Plan/Trace/Artifacts/Approvals panels).
 3. **ربط الأدوات الفعلية بالعمّال** — المنسّق يقبل `call` محقونًا (والبوابة المدفوعة NEXA تعمل)، لكن لا connectors حقيقية مربوطة (browser/coder/data) ولا مزوّد LLM/BYOK في الشجرة.
 4. **قرار النشر + بوابة الإنتاج** — الهدف (حاوية Highway مع volume مقابل Vercel لاحقًا) غير محسوم؛ وبوابة "Production PASS" على المضيف الحقيقي غير منفذة.
-5. **التوحيد** — 8+ فروع `arena/*` على `leader2027` و`main` متأخرة عن هذا الفرع بـ3 commits؛ ومستودعات مشتتة (`new-new` راكد، `gethip_agen` مفقود). لا يوجد "فرع/مستودع سجل" معلن.
+5. **التوحيد** — 8+ فروع `arena/*` على `leader2027` و`main` متأخرة عن هذا الفرع؛ ومستودعات مشتتة (`new-new` راكد، `gethip_agen` مؤكد الوجود لكن بلا أي محتوى GEN — وكيل عربي + ApprovalStore/Turso فقط). لا يوجد "فرع/مستودع سجل" معلن.
 
 ---
 
@@ -141,7 +141,7 @@ GET  /api/orchestrate/tasks/:id/status                        → status + lease
 
 1. **V5.3:** اعتماد الهيكل أعلاه أم تعديل المسارات/الأسماء قبل كتابة العقد؟
 2. **السجل:** هل `leader2027/main` (بعد دمج هذا الفرع) هو مستودع الحقيقة؟ ومصير `new-new`؟
-3. **`gethip_agen`:** استعادة (رابط/اسم جديد) أم إسقاط رسمي من السجل؟
+3. **`gethip_agen` (حُسم الوجود — بقي القرار):** تدقيق `packages/approval-store` مستقل (موصى به: يحوّل Turso/JWT من 📋 إلى ✅/❌) ثم قرار P1: دمج/إحالة أم إبقاء كريبو تجارب منفصل؟
 4. **النشر:** حسم هدف P4 الآن أم بعد V5.3؟
 5. **المزوّدون:** أي مزوّد LLM أول (P2) — Gemini المجاني أم غيره؟
 
@@ -151,6 +151,6 @@ GET  /api/orchestrate/tasks/:id/status                        → status + lease
 
 - **Method:** verify artifacts, not claims. ✅ = verified in this workspace (`leader2027`, branch `arena/01a0e1ab`, green gates); 📋 = reported from other sessions/repos, unverified here; ❌ = absent.
 - **Verified present:** 8 kernel cells + 27-tool catalog + MCP surface; NEXA policy §1–§3; GEN-3 task engine (5 routes); GEN-4 workers (library-only); persistent Store (memory/file/postgres); 335/335 tests + 52/52 live smoke.
-- **Reported, unverified:** `new-new` (exists, stale since Aug 17); `gethip_agen` (**unresolvable via API** — all linked claims unverifiable); v1.0.0 "GO", 173/173 gates, 82 capabilities, providers/connectors, M10.x Redis runtime — no trace in this workspace.
+- **Reported, then directly verified:** `new-new` (exists, stale since Aug 17, unaudited); `gethip_agen` (**exists, public**, main @ `289d28c`, 131-file tree with zero GEN/NEXA/leader2027 trace — a separate Arabic-agent + ApprovalStore/Turso repo; an earlier "unresolvable/deleted" claim in this doc was **wrong**, caused by a transient API failure misread as deletion). Turso/JWT + 17-tests claims still 📋 pending audit.
 - **Gaps:** V5.3 HTTP orchestrator (P0, next); Agentic Workspace UI; real tool/provider wiring behind NEXA; deploy-target decision + Production PASS gate; repo/branch consolidation (8+ arena branches, main behind).
 - **Build order:** P0 orchestrator (contract-first, frozen GEN-3/GEN-4) → P1 consolidation → P2 tools/providers → P3 workspace → P4 deploy + Production PASS.
