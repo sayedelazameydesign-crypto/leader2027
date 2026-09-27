@@ -1,13 +1,15 @@
 /**
- * Celia · core/task · **آلة حالة المهمة** (GEN-2).
+ * Celia · core/task · **آلة حالة المهمة** (GEN-2 + امتداد GEN-3).
  *
  * الوكيل ليس حرًّا: كل انتقال مُعلَن هنا، وما ليس هنا لا يحدث — لا قفزة PLANNING → COMPLETED،
- * وCOMPLETED لا يُبلَغ إلا من VERIFYING (أي بعد حكم عقد النتيجة). الحالات النهائية لا تخرج منها المهمة.
+ * وCOMPLETED/PARTIAL لا يُبلَغان إلا من VERIFYING (أي بعد حكم عقد النتيجة). الحالات النهائية لا تخرج منها المهمة.
  *
  *   CREATED → UNDERSTANDING → PLANNING → READY → EXECUTING → OBSERVING → VERIFYING
  *                                                         ├─ FAILED       → RECOVERING → (EXECUTING | REPLANNING | FAILED)
  *                                                         ├─ NOT_VERIFIED → REPLANNING → (READY | BLOCKED | FAILED)
- *                                                         └─ VERIFIED     → READY (خطوة تالية) | COMPLETED (العقد مُستوفى)
+ *                                                         └─ VERIFIED     → READY (خطوة تالية) | COMPLETED | PARTIAL (العقد يحكم)
+ *   GEN-3: PLANNING | READY → WAITING_APPROVAL → (READY | REPLANNING | BLOCKED) — قبل EXECUTING فقط، أبدًا بعد VERIFYING.
+ *   GEN-3: BLOCKED نهائي بلا إعادة تلقائية (ما رفضته NEXA لا يُعاد كما هو).
  */
 import { NexaError } from "../../nexa/index.ts";
 
@@ -21,27 +23,31 @@ export const TASK_STATES = [
   "VERIFYING",
   "RECOVERING",
   "REPLANNING",
+  "WAITING_APPROVAL",
   "COMPLETED",
+  "PARTIAL",
   "BLOCKED",
   "FAILED",
 ] as const;
 export type TaskState = (typeof TASK_STATES)[number];
 
-export const TERMINAL_STATES: readonly TaskState[] = ["COMPLETED", "BLOCKED", "FAILED"];
+export const TERMINAL_STATES: readonly TaskState[] = ["COMPLETED", "PARTIAL", "BLOCKED", "FAILED"];
 export const isTerminal = (s: TaskState): boolean => TERMINAL_STATES.includes(s);
 
 /** الانتقالات المشروعة — الجدول هو القانون؛ الكود يستشيره ولا يتجاوزه. */
 export const TASK_TRANSITIONS: Record<TaskState, readonly TaskState[]> = {
   CREATED: ["UNDERSTANDING"],
   UNDERSTANDING: ["PLANNING", "BLOCKED"],
-  PLANNING: ["READY", "BLOCKED"],
-  READY: ["EXECUTING", "VERIFYING"],
+  PLANNING: ["READY", "WAITING_APPROVAL", "BLOCKED"],
+  READY: ["EXECUTING", "WAITING_APPROVAL", "VERIFYING"],
   EXECUTING: ["OBSERVING"],
   OBSERVING: ["VERIFYING"],
-  VERIFYING: ["READY", "RECOVERING", "REPLANNING", "COMPLETED", "FAILED", "BLOCKED"],
+  VERIFYING: ["READY", "RECOVERING", "REPLANNING", "COMPLETED", "PARTIAL", "FAILED", "BLOCKED"],
   RECOVERING: ["EXECUTING", "REPLANNING", "FAILED"],
   REPLANNING: ["READY", "BLOCKED", "FAILED"],
+  WAITING_APPROVAL: ["READY", "REPLANNING", "BLOCKED"],
   COMPLETED: [],
+  PARTIAL: [],
   BLOCKED: [],
   FAILED: [],
 };

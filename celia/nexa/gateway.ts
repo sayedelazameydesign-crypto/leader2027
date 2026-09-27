@@ -59,6 +59,19 @@ export type GatewayConfig = {
   /** ربط المزوّد بموارد الحارس: وحدة `requests` لكل تنفيذ، و`spendUsd` بالتكلفة الملاحَظة. */
   resources?: Record<string, { requests?: string; spendUsd?: string }>;
   now?: () => string;
+  /** أول رقم فعل (للاستئناف فوق رسم دليل محفوظ): الأفعال تُرقَّم act-<startSeq+1>… */
+  startSeq?: number;
+};
+
+/** نتيجة فحص قبلي بلا تنفيذ ولا حجز ولا دليل — استشاري فقط؛ `submit` يعيد كل التقييم من جديد. */
+export type PrecheckResult = {
+  ok: boolean;
+  stage: "CAPABILITY" | "POLICY" | "APPROVAL" | "ADMIT";
+  decision: PolicyDecision["decision"] | null;
+  needsApproval: boolean;
+  proposalHash: string;
+  reason: string | null;
+  codes: string[];
 };
 
 export type GatewayRequest = {
@@ -128,6 +141,7 @@ export class ExecutionGateway {
 
   constructor(cfg: GatewayConfig) {
     this.cfg = cfg;
+    this.seq = cfg.startSeq ?? 0;
     this.now = cfg.now ?? (() => new Date().toISOString());
     this.graph = cfg.graph ?? new EvidenceGraph();
     if (!this.graph.getNode(cfg.taskId)) this.graph.task(cfg.taskId, this.now(), { goal: cfg.goal, gateway: "nexa/gateway GEN-1" });
@@ -152,6 +166,48 @@ export class ExecutionGateway {
     const boundaryCalls: Record<string, number> = {};
     for (const [provider, b] of Object.entries(this.cfg.boundaries)) boundaryCalls[provider] = "calls" in b && typeof (b as { calls?: unknown }).calls === "number" ? (b as { calls: number }).calls : -1;
     return { submitted: this.list.length, executed, verified, denied, boundaryCalls, evidenceHead: this.graph.stats().head };
+  }
+
+  /** أكبر رقم فعل موجود في رسم دليل (لاستئناف الترقيم بعد إعادة التشغيل). */
+  static lastActionSeq(graph: EvidenceGraph): number {
+    let max = 0;
+    for (const e of graph.entriesSnapshot()) {
+      if (e.kind !== "node") continue;
+      const m = /^action:act-(\d+)$/.exec(e.id);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+    return max;
+  }
+
+  /**
+   * فحص قبلي (GEN-3): هل سيمرّ هذا الاقتراح، أم يحتاج منحًا بشريًا، أم سيُرفض؟ — بلا تنفيذ، بلا حجز، بلا أثر في الدليل أو السلّم.
+   * يستخدمه الوكيل ليقف في WAITING_APPROVAL **قبل** EXECUTING بدل أن يفشل. القرار الملزم يبقى في `submit`.
+   */
+  precheck(req: GatewayRequest): PrecheckResult {
+    const { registry, providers, boundaries, costGuard, taskId } = this.cfg;
+    const proposal: Proposal = {
+      id: "precheck",
+      intentId: req.intentId,
+      capability: req.capability,
+      operation: req.operation,
+      arguments: req.arguments,
+      risk: req.risk,
+      dataClass: req.dataClass,
+      maxCostUsd: req.maxCostUsd === undefined ? DEFAULT_SPEND_CAP_USD : req.maxCostUsd,
+      proposedBy: req.proposedBy,
+      at: this.now(),
+    };
+    const hash = proposalHash(proposal);
+    if (!registry.has(req.capability)) return { ok: false, stage: "CAPABILITY", decision: null, needsApproval: false, proposalHash: hash, reason: `unknown capability "${req.capability}"`, codes: [] };
+    const cap = registry.get(req.capability).capability;
+    if (!providers.includes(cap.provider) || !boundaries[cap.provider]) return { ok: false, stage: "CAPABILITY", decision: null, needsApproval: false, proposalHash: hash, reason: `provider "${cap.provider}" unknown or unbound`, codes: [] };
+    const remaining = costGuard.remaining(taskId, req.agentId).min;
+    const policy = evaluatePolicy({ capability: cap, proposal, budgetRemainingUsd: remaining, mode: this.cfg.mode ?? "CLOUD", simulated: Boolean(req.simulated), localProviders: this.cfg.localProviders }, this.cfg.rules);
+    const codes = policy.findings.filter((f) => f.severity !== "info").map((f) => f.code);
+    if (policy.decision === "DENY") return { ok: false, stage: "POLICY", decision: "DENY", needsApproval: false, proposalHash: hash, reason: policy.findings.filter((f) => f.severity === "deny").map((f) => `${f.rule}: ${f.reason}`).join(" | "), codes };
+    const auth = authorize(proposal, policy, this.cfg.grants?.() ?? [], this.now());
+    if (!auth.authorized) return { ok: false, stage: "APPROVAL", decision: policy.decision, needsApproval: true, proposalHash: hash, reason: auth.reasons[0] ?? "approval required", codes };
+    return { ok: true, stage: "ADMIT", decision: policy.decision, needsApproval: false, proposalHash: hash, reason: null, codes };
   }
 
   async submit(req: GatewayRequest): Promise<EvidenceReceipt> {

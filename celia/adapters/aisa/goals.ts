@@ -47,6 +47,7 @@ export const AISA_DISCOVER_TEMPLATE: GoalTemplate = {
           { capability: capabilityId("search"), operation: "search", arguments: { query, limit }, ...read, note: "runtime behaviour: Bearer required" },
         ],
         expect: { ok: true, verified: true, minCount: { path: "candidates", min: 1 } },
+        artifacts: [{ type: "candidate-operation-ids", from: "candidates[*].operation_id", limit: 10 }],
       },
       {
         id: "details",
@@ -54,6 +55,11 @@ export const AISA_DISCOVER_TEMPLATE: GoalTemplate = {
         establishes: ["get_details_verified"],
         candidates: [{ capability: capabilityId("get_details"), operation: "get_details", arguments: { operation_ids: { $bind: "discover.candidates[*].operation_id", limit } }, ...read }],
         expect: { ok: true, verified: true, minCount: { path: "results", min: 1 } },
+        artifacts: [
+          { type: "detailed-operation-ids", from: "results[*].operation_id", limit: 10 },
+          { type: "declared-prices", from: "results[*].price", limit: 10 },
+          { type: "declared-availability", from: "results[*].availability", limit: 10 },
+        ],
       },
       {
         id: "account",

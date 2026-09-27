@@ -109,8 +109,8 @@ describe("Celia GEN-2 · decisive scenario 1: step 1 PASS → step 2 FAIL → ob
   });
 });
 
-describe("Celia GEN-2 · decisive scenario 2: tool unavailable → replan → alternative unavailable → BLOCKED", () => {
-  it("blocks honestly when every alternative is unavailable, with the denials as evidence and no COMPLETED claim", async () => {
+describe("Celia GEN-2/3 · decisive scenario 2: tool unavailable → replan → alternative unavailable → step blocked → contract says PARTIAL (never COMPLETED)", () => {
+  it("blocks the step and its dependents, keeps what was established, and ends PARTIAL by the contract with the denials as evidence", async () => {
     const template = threeStepTemplate([
       { capability: "p:b1", operation: "b1", arguments: {}, risk: "read", dataClass: "PUBLIC" },
       { capability: "q:b2", operation: "b2", arguments: {}, risk: "read", dataClass: "PUBLIC" }, // provider q has no bound boundary
@@ -118,22 +118,22 @@ describe("Celia GEN-2 · decisive scenario 2: tool unavailable → replan → al
     const w = world({ a: () => ok({ items: [1] }), b1: () => bad(503), b2: () => ok({ items: [1] }) }, [cap("p:a"), cap("p:b1"), cap("q:b2", { provider: "q" }), cap("p:c")], [template], { limits: { maxReplans: 3, maxRetriesPerStep: 1, maxAttempts: 20 }, classifyFailure: () => "transient" });
     const report = await w.agent.run({ text: "three" });
     const t = report.task;
-    expect(t.state).toBe("BLOCKED");
+    expect(t.state).toBe("PARTIAL"); // GEN-3: PARTIAL is decided by the contract at VERIFYING, never by the agent
+    expect(t.outcome).toMatchObject({ status: "PARTIAL", met: ["a_done"], unmet: ["b_done", "c_done"] });
     expect(t.blockedReason).toMatch(/no alternative capability for step "b"/);
     expect(w.calls).toEqual(["a", "b1", "b1"]); // 503 is transient ⇒ one retry, then replan; q:b2 denied at CAPABILITY (unknown provider) ⇒ provider never called
     const denied = report.receipts.filter((r) => r.outcome === "DENIED");
     expect(denied).toHaveLength(1);
     expect(denied[0]).toMatchObject({ operation: "b2", deniedAt: "CAPABILITY" });
-    expect(t.steps.map((s) => s.status)).toEqual(["VERIFIED", "BLOCKED", "PENDING"]);
-    expect(t.outcome?.status).toBe("PARTIAL"); // a_done true, b_done false (blocked), c_done unknown → contract says PARTIAL; state says BLOCKED
-    // the exact tail: b1 (transient) retried once, replanned to q:b2, denied at CAPABILITY, replanned again with no alternative ⇒ BLOCKED
-    expect(t.history.map((h) => h.to).slice(-13)).toEqual(["RECOVERING", "EXECUTING", "OBSERVING", "VERIFYING", "RECOVERING", "REPLANNING", "READY", "EXECUTING", "OBSERVING", "VERIFYING", "RECOVERING", "REPLANNING", "BLOCKED"]);
-    expect(t.history.at(-1)?.to).toBe("BLOCKED");
-    expect(t.history.at(-2)?.to).toBe("REPLANNING");
+    expect(t.steps.map((s) => s.status)).toEqual(["VERIFIED", "BLOCKED", "BLOCKED"]); // c binds b.items ⇒ blocked by dependency, no attempt made
+    expect(t.steps[2]!.attempts).toEqual([expect.objectContaining({ outcome: "ERROR", reason: expect.stringMatching(/dependency "b" blocked/) })]);
+    expect(t.history.map((h) => h.to).slice(-6)).toEqual(["VERIFYING", "RECOVERING", "REPLANNING", "READY", "VERIFYING", "PARTIAL"]);
     const replay = replayRun(JSON.parse(JSON.stringify(report)) as AgentRunReport);
     expect(replay.gate.outcome_contract_verified).toBe(false);
     expect(replay.gate.evidence_chain_valid).toBe(true);
     expect(replay.gate.all_actions_gated).toBe(true);
+    expect(replay.gen3.partial_verified).toBe(true);
+    expect(replay.problems).toEqual([]);
   });
 });
 
@@ -153,7 +153,9 @@ describe("Celia GEN-2 · decisive scenario 3: cost unknown → NEXA DENY → pro
     expect(report.receipts).toHaveLength(1);
     expect(report.receipts[0]).toMatchObject({ operation: "dyn", outcome: "DENIED", deniedAt: "POLICY", policy: "DENY" });
     expect(report.task.steps[0]!.attempts[0]).toMatchObject({ outcome: "DENIED", deniedAt: "POLICY", verdict: "FAILED", codes: ["NEXA_E_COST_UNKNOWN"] });
-    expect(report.task.state).toBe("BLOCKED");
+    expect(report.task.state).toBe("BLOCKED"); // nothing failed, nothing established: denied ⇒ BLOCKED (decided at VERIFYING)
+    expect(report.task.outcome?.status).toBe("FAILED"); // the contract's own verdict: required fact false
+    expect(report.task.history.map((h) => h.to).slice(-5)).toEqual(["RECOVERING", "REPLANNING", "READY", "VERIFYING", "BLOCKED"]);
     expect(report.task.facts.paid_use).toBe(false);
   });
 

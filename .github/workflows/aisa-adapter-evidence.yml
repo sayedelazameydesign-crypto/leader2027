@@ -73,25 +73,44 @@ jobs:
             --in /tmp/aisa-adapter-evidence.json --contract celia/adapters/aisa/contract.readonly.json \
             --graph /tmp/aisa-evidence-graph.jsonl --out /tmp/aisa-nexa.txt
 
-      # Celia GEN-2 Agent Core: هدف → فهم → عقد → خطة → كل خطوة اقتراح إلى البوابة → ملاحظة → تحقق → إعادة تخطيط عند الفشل → حكم العقد.
-      # المفتاح من البيئة فقط؛ الوكيل لا يملك مسارًا شبكيًا مباشرًا. الخروج 0 فقط عند COMPLETED.
-      - name: "Celia agent (GEN-2): goal -> plan -> gated actions -> verify -> replan"
+      # Celia GEN-2/GEN-3: هدف → فهم → عقد → خطة → كل خطوة اقتراح إلى البوابة → ملاحظة → تحقق → إعادة تخطيط → حكم العقد،
+      # فوق مخزن SQLite دائم. الخطوة الأولى تُقتل عمدًا (SIGKILL حقيقي بعد التزام الانتقال الثالث إلى EXECUTING) لإثبات الاستئناف.
+      - name: "Celia agent (GEN-3): run on SQLite, killed mid-EXECUTING on purpose"
         if: always()
         env:
           AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
           QUERY: ${{ inputs.query || 'extract the readable text content of a public documentation web page given its URL' }}
+          CELIA_CRASH_AT: "EXECUTING:3"
+          NODE_OPTIONS: "--disable-warning=ExperimentalWarning"
         run: |
-          node celia/adapters/aisa/agent.ts --goal "discover aisa tools for $QUERY" --limit 3 \
-            --json /tmp/aisa-agent.json --checkpoints /tmp/aisa-agent-checkpoints.jsonl --graph /tmp/aisa-agent-graph.jsonl \
-            | tee /tmp/aisa-agent.txt
+          set +e
+          node celia/adapters/aisa/agent.ts run --goal "discover aisa tools for $QUERY" --limit 3 --db /tmp/celia.sqlite | tee /tmp/aisa-agent-run1.txt
+          code="${PIPESTATUS[0]}"
+          set -e
+          echo "::notice title=PROCESS_1::exit=$code (137 = killed by SIGKILL as injected; the SQLite checkpoint must carry the task from here)"
+          if [ -z "$AISA_API_KEY" ]; then echo "no key: agent blocked before planning (expected exit 1)"; exit 0; fi
+          test "$code" = "137"
+
+      - name: "Celia agent (GEN-3): resume from the SQLite checkpoint"
+        if: always()
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+          NODE_OPTIONS: "--disable-warning=ExperimentalWarning"
+        run: |
+          if [ -z "$AISA_API_KEY" ]; then echo "::notice title=OUTCOME::no key: nothing to resume"; exit 1; fi
+          node celia/adapters/aisa/agent.ts resume --db /tmp/celia.sqlite --task task:aisa-agent-discover \
+            --json /tmp/aisa-agent.json --graph /tmp/aisa-agent-graph.jsonl | tee /tmp/aisa-agent-run2.txt
           exit "${PIPESTATUS[0]}"
 
-      # إعادة offline: سلسلة نقاط التفتيش + شرعية الانتقالات + سلسلة الدليل + إعادة حساب النتيجة + كل محاولة لها إيصال ⇒ GEN2_GATE. الخروج 0 فقط عند PASS.
-      - name: "Celia agent replay (GEN2_GATE, offline)"
+      # إعادة offline من المخزن نفسه: سلاسل نقاط التفتيش والدليل، شرعية الانتقالات، إعادة حساب النتيجة، إيصال لكل محاولة،
+      # نقل = تنفيذ في كل عملية، المخرجات وتجزئاتها ⇒ GEN2_GATE + GEN3_GATE. الخروج 0 فقط عند PASS.
+      - name: "Celia replay from the store (GEN2_GATE + GEN3_GATE, offline)"
         if: always()
+        env:
+          NODE_OPTIONS: "--disable-warning=ExperimentalWarning"
         run: |
-          if [ ! -f /tmp/aisa-agent.json ]; then echo "::notice title=GEN2_GATE::GEN2_GATE runtime=NOT_VERIFIED (agent produced no JSON report)"; exit 1; fi
-          node celia/core/agent/replay.ts --in /tmp/aisa-agent.json
+          if [ ! -f /tmp/celia.sqlite ]; then echo "::notice title=GEN3_GATE::GEN3_GATE runtime=NOT_VERIFIED (no store)"; exit 1; fi
+          node celia/core/agent/replay.ts --db /tmp/celia.sqlite --task task:aisa-agent-discover
 
       - name: "Job summary (redacted evidence)"
         if: always()
@@ -117,14 +136,18 @@ jobs:
             cat /tmp/aisa-adapter-evidence.json 2>/dev/null || echo "{}"
             echo '```'
             echo '</details>'
-            echo "### Celia agent run (GEN-2) — goal -> plan -> gated actions -> verify -> replan"
+            echo "### Celia agent (GEN-3) — process 1 (killed on purpose after EXECUTING #3)"
             echo '```text'
-            grep -vE '^::' /tmp/aisa-agent.txt 2>/dev/null || echo "(no agent output)"
+            grep -vE '^::' /tmp/aisa-agent-run1.txt 2>/dev/null || echo "(no output)"
             echo '```'
-            echo '<details><summary>agent checkpoints (JSONL, hash-chained)</summary>'
+            echo "### Celia agent (GEN-3) — process 2 (resumed from the SQLite checkpoint)"
+            echo '```text'
+            grep -vE '^::' /tmp/aisa-agent-run2.txt 2>/dev/null || echo "(no output)"
+            echo '```'
+            echo '<details><summary>agent checkpoints (hash-chained, from the report)</summary>'
             echo
             echo '```text'
-            cat /tmp/aisa-agent-checkpoints.jsonl 2>/dev/null || echo "(no checkpoints)"
+            node -e 'const r=require("/tmp/aisa-agent.json");for(const c of r.checkpoints)console.log(`${c.seq}\t${c.from??"-"}>${c.state}\tstep=${c.stepId??"-"}\thead=${c.evidenceHead.slice(0,12)}\thash=${c.hash.slice(0,12)}\t${c.note.slice(0,90)}`)' 2>/dev/null || echo "(no report)"
             echo '```'
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"

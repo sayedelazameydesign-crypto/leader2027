@@ -1,8 +1,8 @@
 # Celia — نظام تشغيل الوكلاء (Agent OS) · NEXA طبقة الحوكمة وثقة التنفيذ
 
-> **الحالة الصادقة:** هذا المجلد = **GEN-0 Foundation + GEN-1 Real Execution Boundary + GEN-2 Agent Core** — نواة NEXA، بوابة تنفيذ قبلية،
+> **الحالة الصادقة:** هذا المجلد = **GEN-0 Foundation + GEN-1 Real Execution Boundary + GEN-2 Agent Core + GEN-3 Task Engine** — نواة NEXA، بوابة تنفيذ قبلية،
 > حارس موارد fail-closed، رسم دليل بسلسلة تجزئة، عقد نتيجة، وكيل حتمي بآلة حالة مقيّدة (هدف → عقد → خطة → أفعال عبر البوابة → ملاحظة → تحقق → إعادة تخطيط)،
-> وأول قدرة (AIsa) تمرّ **عبر البوابة** بدليل CI حقيقي.
+> مهمة دائمة على SQLite تستأنف من آخر نقطة تفتيش وتقف في WAITING_APPROVAL بانتظار منح بشري، وأول قدرة (AIsa) تمرّ **عبر البوابة** بدليل CI حقيقي (بما فيه قتل حقيقي للعملية واستئنافها).
 > ليس «Celia 2027». ما لم يُذكر أدناه على أنه `EXISTS` فهو غير مبني. القاعدة §24 تنطبق على هذا الملف نفسه:
 > **CAN ≠ AVAILABLE ≠ AUTHORIZED ≠ EXECUTABLE ≠ EXECUTED ≠ VERIFIED.**
 >
@@ -40,16 +40,17 @@ celia/
 │   ├── evidence.ts            # Evidence Graph (§14) إلحاقي بسلسلة تجزئة + Replay (§15) + explain()
 │   ├── verification.ts        # Outcome Contract (§6): COMPLETED/PARTIAL/BLOCKED/NOT_VERIFIED/FAILED
 │   └── index.ts
-├── core/                      # EXISTS (GEN-2)
-│   ├── task/                  # نموذج المهمة: آلة الحالة (task-state) · الخطوة · نقاط التفتيش المسلسلة · النتيجة · المهمة
-│   └── agent/                 # الوكيل: السياق · الفهم (قوالب) · الخطة (ربط/توقعات) · المخطِّط · الملاحظة · التحقق · التعافي · إعادة التخطيط · حلقة القرار · الإعادة (GEN2_GATE)
+├── core/                      # EXISTS (GEN-2 + GEN-3)
+│   ├── task/                  # نموذج المهمة: آلة الحالة (+WAITING_APPROVAL/PARTIAL) · الخطوة · نقاط التفتيش المسلسلة · النتيجة · المهمة
+│   │                          # GEN-3: store (واجهة + ذاكرة) · sqlite-store (node:sqlite) · approval (منح بشرية معلّقة) · artifact (مخرجات مجزّأة)
+│   └── agent/                 # الوكيل: السياق · الفهم (قوالب) · الخطة (ربط/توقعات) · المخطِّط · الملاحظة · التحقق · التعافي · إعادة التخطيط · حلقة القرار القابلة للاستئناف · الإعادة (GEN2_GATE + GEN3_GATE)
 ├── adapters/
 │   └── aisa/                  # EXISTS — أول قدرة تمرّ عبر البوابة (+ قوالب أهداف ووكيل GEN-2 فوقها)
 │       ├── adapter.ts         # النقل الخام (بعدّاد نداءات) + السياسة + المستخرجات + الدليل المنقّح
 │       ├── provider.ts        # GEN-1: المزوّد داخل الحدّ — 4 عمليات مجانية قرائية؛ paid use معطّل بنيويًا
 │       ├── pipeline.ts        # GEN-1: خط الأنابيب المحكوم — كل نداء = اقتراح إلى البوابة
 │       ├── bridge.ts          # حكم NEXA offline: سلسلة الدليل + الإيصالات + العقد + GEN1_GATE
-│       ├── goals.ts · agent.ts # GEN-2: قالب هدف «اكتشاف AIsa» + تشغيل الوكيل على AIsa (تركيب فقط)
+│       ├── goals.ts · agent.ts # GEN-2/3: قالب هدف «اكتشاف AIsa» (+مخرجات) + CLI الوكيل: run / resume / approvals / approve / reject (+حقن عطل)
 │       └── contract.readonly.json · README.md
 ├── apps/ core/ runtime/ mesh/ evolution/ observability/     # PLANNED — غير موجودة
 ├── nexa/{identity,acl,approvals}                            # PLANNED — غير موجودة (approvals جزئيًا داخل authorization.ts)
@@ -83,6 +84,36 @@ Proposal → CAPABILITY (resolver: قدرة معروفة؟ مزوّد معروف
 
 إثبات «البوابة قبلية» في الدليل: `transport_calls == boundary_calls == executed` و`ungated_calls = 0`،
 وكل إيصال مُنفَّذ يحمل تاريخ مراحله (POLICY وAUTHORIZATION وAPPROVAL قبل EXECUTION). المنح أحادي الاستعمال يُحرق عند عبور EXECUTION.
+
+## محرّك المهام (GEN-3) — `core/task` + استئناف في `core/agent`
+
+```text
+CREATED > UNDERSTANDING > PLANNING > READY > EXECUTING > OBSERVING > VERIFYING
+  VERIFYING        ⇒ COMPLETED | PARTIAL | READY | RECOVERING > REPLANNING > READY … | BLOCKED | FAILED
+  PLANNING | READY ⇒ WAITING_APPROVAL ⇒ READY | REPLANNING | BLOCKED        (قبل EXECUTING فقط — أبدًا بعد VERIFYING)
+```
+
+| قاعدة بنائية | التطبيق |
+|---|---|
+| `WAITING_APPROVAL` من PLANNING/READY فقط | جدول `TASK_TRANSITIONS`؛ الوكيل يفحص قبليًا (`gateway.precheck`) فيقف **قبل** EXECUTING عندما تتطلب السياسة منحًا بشريًا |
+| استئناف `WAITING_APPROVAL` يعيد التحقق من `proposalHash + operation + costCap` | عدم تطابق ⇒ DENY فوري (`approval.mismatch` في سجل التدقيق) ⇒ REPLANNING |
+| `PARTIAL` من VERIFYING فقط — سلطة العقد لا الوكيل | خطوة بلا بديل تُحجب (ومن يعتمد عليها) وتُكمل الحلقة ما تبقّى، ثم يحكم العقد: PARTIAL / BLOCKED / FAILED |
+| `BLOCKED` نهائي بلا إعادة تلقائية | ما رفضته NEXA لا يُعاد كما هو؛ الحالات النهائية بلا مخارج |
+
+- **الاستمرارية:** كل انتقال = معاملة SQLite واحدة (`node:sqlite`، بلا تبعيات؛ D1 لاحقًا يطبّق `TaskStore` نفسها): نقطة تفتيش مسلسلة بالتجزئة + مدخلات الدليل الجديدة + لقطة المهمة.
+- **الاستئناف:** `loadTaskForResume` يعيد سلسلة النقاط وسلسلة الدليل ويربطهما بلقطة المهمة **قبل** أي خطوة (تلاعب ⇒ `RESUME_INTEGRITY`)، ثم تُبنى البوابة فوق الرسم المحفوظ وتكمل الحلقة من الحالة المسجَّلة.
+  انقطاع بعد EXECUTING = محاولة `INTERRUPTED` مسجَّلة: القراءة تُعاد مرة، وغير القراءة يُغلق fail-closed (تسوية يدوية).
+- **الموافقات = منح بشرية معلّقة:** `ApprovalRequest` (pending/approved/rejected/expired + TTL + سجل تدقيق)؛ الموافقة (إنسان فقط، §3) تولّد Grant أحادي الاستعمال مربوطًا بالكامل؛ الرفض/الانتهاء ⇒ REPLANNING إن وُجد بديل وإلا PARTIAL/BLOCKED — لا استمرار صامت أبدًا.
+- **المخرجات:** من خطوات VERIFIED فقط، مربوطة بـ stepId + actionId + رأس الدليل، بتجزئة تُعاد حسابيًا؛ تبقى متاحة في PARTIAL/BLOCKED.
+
+```text
+GEN3_GATE = persistence_verified ∧ resume_verified ∧ approval_flow_verified ∧ partial_verified ∧ artifacts_verified ∧ tests_pass
+            (تُحسب من المخزن نفسه: core/agent/replay.ts --db … --task …؛ approval_flow_verified=tests عندما لا يُمارَس في التشغيل — لا موافقة بشرية مزيّفة في CI)
+```
+
+الاختبارات الحاسمة (`tests/unit/celia-task-engine.test.ts`): قتل العملية أثناء EXECUTING → إعادة تشغيل → استئناف من نقطة التفتيش → نفس نتيجة التشغيل المتواصل (ملف SQLite حقيقي)؛
+خطوة تحتاج `NEXA_A_PAID` بلا منح → WAITING_APPROVAL → موافقة بشرية → استئناف → COMPLETED بأساس grant ومنح مستهلك؛ رفض/انتهاء/تلاعب → REPLANNING أو PARTIAL، والمرشح المدفوع لا يُنادى؛
+عقد متحقق جزئيًا بلا بدائل ⇒ PARTIAL لا COMPLETED والمخرجات باقية. وفي CI الحقيقي: العملية تُقتل فعلًا (SIGKILL) بعد الالتزام الثالث بـEXECUTING ثم تُستأنف من الملف وتُعاد من المخزن.
 
 ## قرارات GEN-1 المحسومة (مثبتة في الكود والاختبارات)
 
@@ -184,7 +215,7 @@ GEN1_GATE = real_execution_pre_gate_verified AND paid_use_calls = 0 AND secret_e
 | v0.1 GEN-0 Foundation | NEXA (protocol · capability · policy · authorization · cost · execution boundary · evidence · verification) | **EXISTS · TESTED · RUNTIME VERIFIED** |
 | v0.2 GEN-1 Execution Gate | ExecutionGateway · CapabilityResolver · AuthorizationGate · ApprovalGate · CostReservation · ProviderExecution · EvidenceReceipt · ResourceGuard | **EXISTS · TESTED · RUNTIME VERIFIED** (AIsa عبر البوابة في CI؛ `GEN1_GATE runtime=PASS`) |
 | v0.3 GEN-2 Agent Core | intent · context · planner · plan · decision loop · observation · verification · recovery · replan · task/checkpoint/replay | **EXISTS · TESTED · RUNTIME VERIFIED** (وكيل على AIsa في CI؛ `GEN2_GATE runtime=PASS`) |
-| v0.4 GEN-3 Task Engine | مهام دائمة بحالات PLANNED…COMPLETED | PLANNED |
+| v0.4 GEN-3 Task Engine | SQLite store · resume · WAITING_APPROVAL/PARTIAL · approvals → grants · artifacts · replay from store | **EXISTS · TESTED · RUNTIME VERIFIED** (قتل + استئناف حقيقيان في CI؛ `GEN3_GATE runtime=PASS`، الموافقات = tests) |
 | v0.5 GEN-4 Tool Runtime | FILES/TERMINAL/GIT/GITHUB/WEB/… كمزوّدين خلف البوابة | PLANNED — لا منفّذ حقيقي غير AIsa القرائي |
 | v0.6–v0.9 | Skills · Subagents · Workspace · Project Brain | PLANNED |
 | v1.0–v1.2 | Browser/Computer runtime (device bridge) · Model Mesh | PLANNED |
@@ -204,14 +235,16 @@ GEN1_GATE = real_execution_pre_gate_verified AND paid_use_calls = 0 AND secret_e
 | Human approval (grants) في CI | TESTED فقط | لا منح في CI؛ المسار مُختبَر بمنفّذ وهمي (منح بشري مربوط بالكامل) |
 | Agent Core (GEN-2): آلة الحالة · حلقة القرار · إعادة التخطيط · نقاط التفتيش · الإعادة | VERIFIED | `tests/unit/celia-agent.test.ts` + تشغيل CI حقيقي (`GEN2_GATE`) |
 | Understanding بنموذج لغوي · Planner بنموذج | NOT_PRESENT (عمدًا) | GEN-2 حتمي بقوالب؛ Model Mesh = GEN-9 |
-| Task Engine دائم (تخزين، WAITING_APPROVAL، استئناف) | PLANNED (GEN-3) | نقاط التفتيش في الذاكرة/JSONL فقط |
+| Task Engine (GEN-3): SQLite · استئناف · WAITING_APPROVAL · PARTIAL · مخرجات | VERIFIED | `tests/unit/celia-task-engine.test.ts` + قتل/استئناف حقيقيان في CI (`GEN3_GATE`) |
+| تدفق الموافقة البشرية عند التشغيل | TESTED فقط | لا إنسان في CI؛ المسار مُختبَر كاملًا (طلب → منح → استهلاك → تدقيق) |
 | Skills · Subagents · Workspace · Project Brain · Browser/Computer · Model Mesh · UI · Cloud deploy | NOT_PRESENT / PLANNED | — |
 
 ## ما لا يدّعيه هذا المجلد
 
 - لا منفّذ حقيقي غير مزوّد AIsa القرائي المجاني؛ ملفات/طرفية/متصفح/GitHub/`use` مدفوع = غير موجودة، و`DeniedExecutor` هو الافتراضي.
 - لا ذاكرة/Project Brain، لا Model Mesh، لا Skill Mesh، لا وكلاء متعددون، لا واجهة، لا نشر سحابي.
-- الوكيل في GEN-2 يفهم **قالبًا واحدًا** (اكتشاف AIsa) — الفهم قوالب حتمية لا فهم لغوي؛ الخطط والنقاط تُحفظ في الذاكرة/JSONL لا في مخزن دائم (GEN-3).
+- الوكيل يفهم **قالبًا واحدًا** (اكتشاف AIsa) — الفهم قوالب حتمية لا فهم لغوي.
+- الموافقات بلا RBAC ولا موافقين متعددين ولا واجهة (API/CLI + مخزن فقط)؛ لا تنفيذ موزّع/متعدد العمّال؛ `approval_flow_verified` في CI = tests لا runtime (لا موافقة بشرية مزيّفة).
 - «zero charge delta» من مصدر المزوّد نفسه = عدم‑تناقض، لا إثبات محاسبي مستقل.
 - «pre_execution_gate_verified» إثبات **داخل العملية** (عدّاد النقل الخام مقابل تنفيذات البوابة + ترتيب المراحل في الإيصالات)؛
   ليس عزلًا على مستوى الشبكة/نظام التشغيل — ذلك يأتي مع Workspace/Device runtime.

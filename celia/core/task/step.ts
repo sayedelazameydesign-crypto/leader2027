@@ -32,6 +32,9 @@ export type Expectation = {
   minCount?: { path: string; min: number };
 };
 
+/** مخرج تصريحي يُشتق من ملاحظة الخطوة المتحققة (GEN-3): `from` مسار في البيانات المفكوكة. */
+export type ArtifactSpec = { type: string; from: string; limit?: number };
+
 export type PlanStep = {
   id: string;
   title: string;
@@ -42,10 +45,13 @@ export type PlanStep = {
   expect: Expectation;
   /** إعادات المحاولة للمرشح نفسه عند فشل عابر (افتراضيًا 1). */
   maxRetries?: number;
+  /** مخرجات تُولَّد من الخطوة عند VERIFIED فقط (GEN-3). */
+  artifacts?: ArtifactSpec[];
 };
 
 export type StepStatus = "PENDING" | "RUNNING" | "VERIFIED" | "FAILED" | "BLOCKED";
-export type AttemptOutcome = "EXECUTED" | "DENIED" | "ERROR";
+/** INTERRUPTED (GEN-3): العملية انقطعت بعد EXECUTING وقبل ملاحظة مسجّلة — لا يُعرف هل نُودي المزوّد. */
+export type AttemptOutcome = "EXECUTED" | "DENIED" | "ERROR" | "INTERRUPTED";
 export type StepVerdict = "VERIFIED" | "NOT_VERIFIED" | "FAILED";
 
 export type StepAttempt = {
@@ -64,6 +70,8 @@ export type StepAttempt = {
   reason: string;
   codes: string[];
   retry: boolean;
+  /** تصنيف الفشل وقت الحكم (يُحفظ ليصلح للاستئناف عند RECOVERING). */
+  failureClass?: "transient" | "permanent";
   at: string;
   evidenceHead: string | null;
 };

@@ -14,7 +14,7 @@
 | `bridge.ts` | حكم NEXA offline على مخرجات التشغيل: سلسلة الدليل، الإيصالات، العقد، GEN1_GATE |
 | `contract.readonly.json` | عقد النتيجة |
 | `goals.ts` | GEN-2: قالب هدف «اكتشاف AIsa» (عقد + استراتيجية 4 خطوات بمرشحين مرتبين) + فكّ الناتج + تصنيف الفشل |
-| `agent.ts` | GEN-2: تشغيل وكيل Celia على AIsa — تركيب فقط (مزوّد + سجل + بوابة + قوالب + وكيل)؛ CLI |
+| `agent.ts` | GEN-2/3: تشغيل وكيل Celia على AIsa — تركيب فقط (مزوّد + سجل + بوابة + قوالب + مخزن SQLite + موافقات + وكيل)؛ CLI: `run / resume / approvals / approve / reject` |
 
 ## خط الأنابيب
 
@@ -89,12 +89,15 @@ node celia/adapters/aisa/bridge.ts --in evidence.json --graph evidence-graph.jso
 الكتالوج يصف `search` بأنه يعمل بلا مفتاح؛ الخادم ردّ **401** بلا Bearer (2026‑09‑27). يُسجَّل ذلك في الدليل كـ
 `AISA_SEARCH_ANONYMOUS=CONTRADICTED_BY_RUNTIME`، والاعتماد في التنفيذ على سلوك الخادم الفعلي: Bearer دائمًا.
 
-## وكيل GEN-2 على AIsa (`agent.ts`)
+## وكيل GEN-2/3 على AIsa (`agent.ts`)
 
 ```bash
-AISA_API_KEY=… node celia/adapters/aisa/agent.ts --goal "discover aisa tools for <query>" --limit 3 \
-  --json /tmp/aisa-agent.json --checkpoints /tmp/aisa-agent-checkpoints.jsonl --graph /tmp/aisa-agent-graph.jsonl
-node celia/core/agent/replay.ts --in /tmp/aisa-agent.json     # offline: GEN2_GATE + إعادة السلاسل — الخروج 0 فقط عند PASS
+export NODE_OPTIONS=--disable-warning=ExperimentalWarning   # node:sqlite
+AISA_API_KEY=… node celia/adapters/aisa/agent.ts run --goal "discover aisa tools for <query>" --limit 3 --db celia.sqlite [--json out.json]
+node celia/adapters/aisa/agent.ts resume --db celia.sqlite --task task:aisa-agent-discover        # من آخر نقطة تفتيش
+node celia/adapters/aisa/agent.ts approvals --db celia.sqlite                                     # الطلبات المعلّقة
+node celia/adapters/aisa/agent.ts approve --db celia.sqlite --approval <id> --by "<human>"        # ⇒ منح أحادي الاستعمال ثم resume
+node celia/core/agent/replay.ts --db celia.sqlite --task task:aisa-agent-discover                 # offline: GEN2_GATE + GEN3_GATE من المخزن نفسه
 ```
 
 ```text
@@ -102,10 +105,13 @@ UNDERSTAND  template:aisa-discover ⇒ contract required=[mcp_auth_verified, dis
                                           forbidden=[paid_use, ungated_action, secret_exposure] blockers=[secret_absent]
 PLAN v1     authenticate=[aisa:list_categories]  discover=[aisa:search(anonymous) | aisa:search]  details=[aisa:get_details ← $bind discover.candidates[*].operation_id]  account=[aisa:use:account]
 RUN         act-1 list_categories VERIFIED → act-2 search(anonymous) 401 ⇒ FAILED ⇒ RECOVERING ⇒ REPLANNING ⇒ PLAN v2 → act-3 search VERIFIED → act-4 get_details VERIFIED → act-5 use:account VERIFIED
-VERIFY      contract ⇒ COMPLETED · GEN2_GATE runtime=PASS (replan_verified=true لأن الفشل الأول حقيقي ومُثبَت)
+ARTIFACTS   candidate-operation-ids · detailed-operation-ids · declared-prices · declared-availability (من خطوات VERIFIED فقط، بتجزئة)
+VERIFY      contract ⇒ COMPLETED · GEN2_GATE runtime=PASS · GEN3_GATE runtime=PASS (approval_flow_verified=tests)
 ```
 
-غياب المفتاح ⇒ `BLOCKER: secret_absent` قبل أي تخطيط أو نداء ⇒ BLOCKED (لا FAILED، لا ادّعاء). سطور الدليل أسماء ومعرّفات وعدّادات فقط؛ بيانات الخطوات تُسلسل كأشكال (مفاتيح/أطوال) لا قيم.
+- الخروج: `0` COMPLETED · `3` WAITING_APPROVAL (قرار بشري مطلوب ثم `resume`) · `1` غير ذلك. غياب المفتاح ⇒ `BLOCKER: secret_absent` قبل أي تخطيط أو نداء.
+- `CELIA_CRASH_AT=<STATE>:<n>` يقتل العملية (SIGKILL) بعد التزام الانتقال رقم n — يستخدمه سير العمل لإثبات الاستئناف على AIsa الحقيقي: عملية 1 تُقتل بعد `EXECUTING` الثالث، عملية 2 تستأنف من الملف وتسجّل المحاولة `INTERRUPTED` وتعيد القراءة وتكمل.
+- سطور الدليل أسماء ومعرّفات وعدّادات فقط؛ بيانات الخطوات تُسلسل كأشكال، والمخرجات في التقرير بلا بيانات (البيانات في المخزن).
 
 ## جسر NEXA (`bridge.ts`)
 
@@ -136,5 +142,6 @@ VERIFY      contract ⇒ COMPLETED · GEN2_GATE runtime=PASS (replan_verified=tr
   (`submitted=8 executed=6 … ungated_calls=0`، المرشحون مرفوضون عند POLICY/APPROVAL).
 - `tests/unit/celia-gateway.test.ts` — البوابة قاعدةً قاعدة: unknown capability/provider، سياسة، منح أحادية، حجز/تسوية، فشل الحدّ، حارس الموارد.
 - `tests/unit/celia-aisa-agent.test.ts` — الوكيل على AIsa بشبكة وهمية: فهم الهدف، 4 خطوات، فشل البحث المجهول ⇒ إعادة تخطيط حقيقية ⇒ COMPLETED؛ بلا مفتاح ⇒ BLOCKED قبل أي نداء؛ لا تسريب.
+- `tests/unit/celia-task-engine.test.ts` — GEN-3: قتل/استئناف على ملف SQLite، WAITING_APPROVAL → موافقة/رفض/انتهاء/تلاعب، PARTIAL لا COMPLETED، مخرجات، مخازن ومعاملات.
 - `tests/unit/celia-aisa-bridge.test.ts` — خط الأنابيب → الجسر ⇒ COMPLETED + `GEN1 runtime=PASS`؛ تلاعب برسم الـruntime ⇒ FAILED؛
   إيصال يدّعي تنفيذًا مدفوعًا ⇒ FAILED؛ نداء خارج البوابة ⇒ PARTIAL؛ شكل GEN-0 ⇒ NOT_VERIFIED؛ غياب السرّ ⇒ BLOCKED.

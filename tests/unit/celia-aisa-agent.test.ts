@@ -3,7 +3,7 @@ import { runAisaAgent } from "@/celia/adapters/aisa/agent";
 import { AISA_DISCOVER_TEMPLATE, classifyAisaFailure, parseAisaResult } from "@/celia/adapters/aisa/goals";
 import { FAKE_AISA_KEY, mockAisaFetch } from "../helpers/aisa-mock";
 
-const opts = { goal: "discover aisa tools for extracting readable text from a documentation page", json: null, checkpoints: null, graph: null, limit: 3 };
+const opts = { command: "run" as const, goal: "discover aisa tools for extracting readable text from a documentation page", taskId: "task:aisa-agent-discover", db: null, json: null, graph: null, limit: 3, approval: null, by: null, reason: null };
 
 describe("Celia GEN-2 on AIsa (mocked network) — goal → plan → gated actions → real replan → COMPLETED", () => {
   it("understands the goal, plans 4 steps, fails the anonymous search (as runtime does), replans to the authenticated search, completes by contract; no key leaks", async () => {

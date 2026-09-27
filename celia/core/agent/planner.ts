@@ -5,7 +5,7 @@
  * يرتّب (الأعلى على السلّم أولًا، ثم الأرخص، ثم الأقل خطورة)، ويرفض الخطة إن بقيت خطوة بلا مرشح.
  * ما لا يفعله: لا يقرر السياسة (NEXA يقرر عند التقديم)، ولا ينادي مزوّدًا.
  */
-import { riskRank } from "../../nexa/index.ts";
+import { DEFAULT_SPEND_CAP_USD, riskRank } from "../../nexa/index.ts";
 import type { Intent, Plan, PlanStep } from "../task/index.ts";
 import { ladderRank, type AgentContext } from "./context.ts";
 import { planHash } from "./plan.ts";
@@ -24,7 +24,8 @@ export class StrategyPlanner implements Planner {
     const readOnlyGoal = intent.goal.constraints?.readOnly !== false;
     const steps: PlanStep[] = strategy.map((step) => {
       const admissible = step.candidates
-        .map((c) => ({ ...c, maxCostUsd: c.maxCostUsd ?? ctx.defaults.maxCostUsd }))
+        // غير محدد ⇒ 0 (free-first): سقف الوكيل `defaults.maxCostUsd` هو الحدّ الأعلى لما يجوز للمرشح أن يعلنه، لا قيمة افتراضية له.
+        .map((c) => ({ ...c, maxCostUsd: c.maxCostUsd ?? DEFAULT_SPEND_CAP_USD }))
         .filter((c) => {
           const drop = (why: string): false => {
             rejected.push({ stepId: step.id, capability: c.capability, operation: c.operation, reason: why });
