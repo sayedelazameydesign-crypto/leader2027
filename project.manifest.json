@@ -1081,6 +1081,13 @@
         "ar": "عقد GEN-4 (LOCKED)",
         "en": "GEN-4 contract (LOCKED)"
       }
+    },
+    {
+      "path": "docs/celiaos-blueprint-2026.md",
+      "label": {
+        "ar": "مخطط CeliaOS النهائي 2026 (مسودة)",
+        "en": "CeliaOS 2026 final blueprint (draft)"
+      }
     }
   ],
   "outOfScope": {

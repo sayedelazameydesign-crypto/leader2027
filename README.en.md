@@ -218,6 +218,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/contract-vs5.md`](docs/contract-vs5.md) | VS5 contract (LOCKED) — Agent Gateway · V5.1 |
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | GEN-3 contract (LOCKED) — Durable Task Engine |
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | GEN-4 contract (LOCKED) |
+| [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | CeliaOS 2026 final blueprint (draft) |
 
 ## Explicitly Out of Scope
 

@@ -218,6 +218,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/contract-vs5.md`](docs/contract-vs5.md) | عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1 |
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | عقد GEN-3 (LOCKED) — محرك المهام الدائم |
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | عقد GEN-4 (LOCKED) |
+| [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | مخطط CeliaOS النهائي 2026 (مسودة) |
 
 ## خارج النطاق (صراحة)
 
