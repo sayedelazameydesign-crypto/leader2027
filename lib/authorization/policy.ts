@@ -14,7 +14,9 @@ export type Action =
   | "reports:update_status"
   | "users:manage"
   | "settings:manage"
-  | "audit:view";
+  | "audit:view"
+  | "tasks:view"
+  | "tasks:manage";
 
 export type Actor = {
   id: string;
@@ -39,31 +41,37 @@ const MATRIX: Record<Role, Action[]> = {
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
     "users:manage", "settings:manage", "audit:view",
+    "tasks:view", "tasks:manage",
   ],
   CAMPAIGN_ADMIN: [
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
     "users:manage", "settings:manage", "audit:view",
+    "tasks:view", "tasks:manage",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
     "users:manage", "settings:manage", "audit:view",
+    "tasks:view", "tasks:manage",
   ],
   FIELD_COORDINATOR: [
     "dashboard:view", "people:view", "people:create", "people:update",
     "volunteers:view", "volunteers:create", "volunteers:update",
     "reports:view", "reports:create", "reports:update_notes", "reports:update_status",
     "audit:view",
+    "tasks:view", "tasks:manage",
   ],
   FIELD_WORKER: [
     "dashboard:view", "people:view", "volunteers:view",
     "reports:view", "reports:create", "reports:update_notes",
+    "tasks:view",
   ],
   VIEWER: [
     "dashboard:view", "people:view", "volunteers:view", "reports:view",
+    "tasks:view",
   ],
 };
 

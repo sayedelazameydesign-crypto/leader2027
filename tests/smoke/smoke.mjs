@@ -685,6 +685,167 @@ async function main() {
     );
   }
 
+  // ── T: المهام الدائمة GEN-3 ───────────────────────────────────────────────
+  const manager = await login("manager@leader2027.test");
+
+  // T1: إنشاء مهمة ⇒ 201 والتفاصيل ⇒ 200 مع سلسلة سليمة
+  let smokeTaskId = "";
+  {
+    const { res, text } = await req(
+      "/api/tasks",
+      { method: "POST", body: JSON.stringify({ goal: `مهمة smoke ${ts}` }) },
+      manager,
+    );
+    const body = JSON.parse(text);
+    smokeTaskId = body.task?.id ?? "";
+    const detail = await req(`/api/tasks/${smokeTaskId}`, {}, manager);
+    const detailBody = JSON.parse(detail.text);
+    check(
+      "T1: POST /api/tasks ⇒ 201 والتفاصيل بسلسلة سليمة",
+      res.status === 201 &&
+        body.task?.status === "CREATED" &&
+        detail.res.status === 200 &&
+        detailBody.chainValid === true &&
+        detailBody.checkpoints?.length === 1,
+      `create=${res.status} chainValid=${detailBody.chainValid}`,
+    );
+  }
+
+  // T2: الحدود — بلا جلسة 401 · مشاهد 403 على الإنشاء · منسق ينشئ
+  {
+    const anon = await req("/api/tasks");
+    const forbidden = await req(
+      "/api/tasks",
+      { method: "POST", body: JSON.stringify({ goal: "ممنوعة" }) },
+      viewer,
+    );
+    const coordCreate = await req(
+      "/api/tasks",
+      { method: "POST", body: JSON.stringify({ goal: `مهمة منسق ${ts}` }) },
+      coord,
+    );
+    check(
+      "T2: بلا جلسة ⇒ 401 · مشاهد ⇒ 403 · منسق ⇒ 201",
+      anon.res.status === 401 && forbidden.res.status === 403 && coordCreate.res.status === 201,
+      `anon=${anon.res.status} viewer=${forbidden.res.status} coord=${coordCreate.res.status}`,
+    );
+  }
+
+  // T3: الحارس البنيوي حيّ — طلب موافقة من CREATED ⇒ 409 (قبل التخطيط)
+  {
+    const { res, text } = await req(
+      `/api/tasks/${smokeTaskId}/approvals`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          stepId: "pay",
+          operation: "NEXA_A_PAID",
+          costCap: 5,
+          proposal: { operation: "NEXA_A_PAID", costCap: 5 },
+        }),
+      },
+      manager,
+    );
+    check(
+      "T3: طلب موافقة قبل التخطيط ⇒ 409 (transition.illegal)",
+      res.status === 409 && !!JSON.parse(text).errors?.["task.transition.illegal"],
+      `status=${res.status}`,
+    );
+  }
+
+  // ── T4: المنسّق HTTP V5.3 حيًّا ─────────────────────────────────────────────
+  // T4.1: مطالبة ⇒ claimed بهوية الجلسة
+  let smokeLeaseId = "";
+  {
+    const { res, text } = await req(
+      "/api/orchestrate/claims",
+      { method: "POST", body: JSON.stringify({ taskId: smokeTaskId }) },
+      coord,
+    );
+    const body = JSON.parse(text);
+    smokeLeaseId = body.lease?.id ?? "";
+    check(
+      "T4.1: POST /api/orchestrate/claims ⇒ 200 claimed",
+      res.status === 200 && body.status === "claimed" && (body.lease?.workerId ?? "").startsWith("u:"),
+      `status=${res.status} holder=${body.lease?.workerId}`,
+    );
+  }
+
+  // T4.2: منافس ⇒ denied داخل 200 (لا 409)
+  {
+    const { res, text } = await req(
+      "/api/orchestrate/claims",
+      { method: "POST", body: JSON.stringify({ taskId: smokeTaskId }) },
+      manager,
+    );
+    const body = JSON.parse(text);
+    check(
+      "T4.2: مطالبة منافسة ⇒ 200 denied (lease.held)",
+      res.status === 200 && body.status === "denied" && body.code === "lease.held",
+      `status=${res.status} code=${body.code}`,
+    );
+  }
+
+  // T4.3: نبضة المالك ⇒ ok
+  {
+    const { res, text } = await req(
+      "/api/orchestrate/heartbeats",
+      { method: "POST", body: JSON.stringify({ leaseId: smokeLeaseId }) },
+      coord,
+    );
+    check(
+      "T4.3: POST /api/orchestrate/heartbeats ⇒ 200 ok",
+      res.status === 200 && JSON.parse(text).status === "ok",
+      `status=${res.status}`,
+    );
+  }
+
+  // T4.4: الحالة للمشاهد ⇒ 200 مع الملكية والتقدم
+  {
+    const { res, text } = await req(`/api/orchestrate/tasks/${smokeTaskId}/status`, {}, viewer);
+    const body = JSON.parse(text);
+    check(
+      "T4.4: GET status ⇒ 200 مع lease وتقدم",
+      res.status === 200 &&
+        (body.lease?.workerId ?? "").startsWith("u:") &&
+        body.lease?.reclaimable === false &&
+        body.progress?.total === 0,
+      `status=${res.status} holder=${body.lease?.workerId}`,
+    );
+  }
+
+  // T4.5: تسليم ثم تسليم ⇒ claimed للثاني (حقبة أعلى)
+  {
+    const rel = await req(
+      "/api/orchestrate/releases",
+      { method: "POST", body: JSON.stringify({ taskId: smokeTaskId }) },
+      coord,
+    );
+    const retry = await req(
+      "/api/orchestrate/claims",
+      { method: "POST", body: JSON.stringify({ taskId: smokeTaskId }) },
+      manager,
+    );
+    const retryBody = JSON.parse(retry.text);
+    check(
+      "T4.5: تسليم ⇒ released ثم handoff بحقبة 2",
+      rel.res.status === 200 &&
+        JSON.parse(rel.text).status === "released" &&
+        retryBody.status === "claimed" &&
+        retryBody.lease?.fencingToken === 2,
+      `release=${rel.res.status} fencing=${retryBody.lease?.fencingToken}`,
+    );
+  }
+
+  // T4.6: بلا جلسة ⇒ 401
+  {
+    const anon = await req("/api/orchestrate/claims", {
+      method: "POST",
+      body: JSON.stringify({ taskId: smokeTaskId }),
+    });
+    check("T4.6: مطالبة بلا جلسة ⇒ 401", anon.res.status === 401, `status=${anon.res.status}`);
+  }
+
   // ملخص
   let failed = 0;
   for (const r of results) {

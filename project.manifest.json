@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**."
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء****. · GEN-4: تنفيذ موزّع بإيجار/fencing/exactly-once · صفر تعديل في lib/tasks وlib/authorization · GEN4_GATE خضراء {LAST_UPDATED}**. · V5.3: منسّق HTTP (مطالبة/نبض/تحرير/تنفيذ مجاني/دفعات/حالة) · صفر تعديل في lib/tasks وlib/workers وlib/authorization · V53_GATE خضراء {LAST_UPDATED}",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green****. · GEN-4: distributed execution via leases/fencing/exactly-once · zero edits in lib/tasks & lib/authorization · GEN4_GATE green {LAST_UPDATED}**. · V5.3: HTTP orchestrator (claim/heartbeat/release/free-execute/batch/status) · zero edits in lib/tasks, lib/workers & lib/authorization · V53_GATE green {LAST_UPDATED}"
   },
   "principles": {
     "ar": [
@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "237/237"
+      "expected": "346/346 (12 skipped: pg-live)"
     },
     {
       "id": "build",
@@ -105,7 +105,7 @@
     {
       "id": "smoke",
       "script": "npm run smoke",
-      "expected": "49/49"
+      "expected": "58/58"
     },
     {
       "id": "ci",
@@ -131,8 +131,8 @@
       "en": "Production server on 0.0.0.0:3000"
     },
     "test": {
-      "ar": "237 unit/integration (166 قائمة + 71 جديدًا — منها 8 حيّة ضد Postgres: عقد تخزين + مُخدد موزَّع)",
-      "en": "237 unit/integration (166 existing + 71 new — including 8 live against Postgres: storage contract + distributed limiter)"
+      "ar": "298 unit/integration (237 قائمة + 61 جديدًا — GEN-3: آلة حالة + Round-trip ملف + مصافحة API + عقد تخزين موسَّع)",
+      "en": "298 unit/integration (237 existing + 61 new — GEN-3: state machine + file Round-trip + API handshake + extended storage contract)"
     },
     "smoke": {
       "ar": "49 فحص production ضد خادم قائم (`BASE_URL` اختياري) — تشمل بوابة الوكلاء MCP",
@@ -170,7 +170,10 @@
       "**استبدال ساخن**: نسخة جديدة تحلّ محل القديمة بلا إعادة تشغيل وبلا فقدان إعدادات",
       "**مَقابض تعديل لكل ركن**: تعديل سلوك ركن واحد من الواجهة/الـAPI بلا نشر وبلا أثر على غيره",
       "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد",
-      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)"
+      "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)",
+      "**محرك مهام دائم (GEN-3)**: آلة حالة بنيوية + checkpoints مسلسلة + موافقات معلَّقة بمنح أحادية + استئناف بعد القتل",
+      "GEN-4: تنفيذ موزّع للإيجار/fencing/exactly-once + GEN4_GATE (مكتبة، بلا HTTP جديد)",
+      "V5.3: منسّق HTTP فوق lib/workers (6 مسارات + V53_GATE، المدفوع fail-closed حتى P2)"
     ],
     "en": [
       "Source-aware people records — with no political-preference fields",
@@ -186,7 +189,10 @@
       "**Hot swap**: a newer version replaces the old one with no restart and no lost configuration",
       "**Per-corner knobs**: change one corner's behavior from the UI/API with no redeploy and no effect on others",
       "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use",
-      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)"
+      "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)",
+      "**Durable task engine (GEN-3)**: structural state machine + hash-chained checkpoints + pending approvals with single-use grants + resume-after-kill",
+      "GEN-4: distributed leases/fencing/exactly-once execution + GEN4_GATE (library, no new HTTP)",
+      "V5.3: HTTP orchestrator over lib/workers (6 routes + V53_GATE, paid fail-closed until P2)"
     ]
   },
   "levels": {
@@ -371,6 +377,22 @@
         "en": "View audit"
       },
       "group": "admin"
+    },
+    {
+      "id": "tasks:view",
+      "label": {
+        "ar": "عرض المهام",
+        "en": "View tasks"
+      },
+      "group": "view"
+    },
+    {
+      "id": "tasks:manage",
+      "label": {
+        "ar": "إدارة المهام",
+        "en": "Manage tasks"
+      },
+      "group": "write"
     }
   ],
   "matrix": {
@@ -388,7 +410,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "CAMPAIGN_ADMIN": [
       "dashboard:view",
@@ -404,7 +428,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "CAMPAIGN_MANAGER": [
       "dashboard:view",
@@ -420,7 +446,9 @@
       "reports:update_status",
       "users:manage",
       "settings:manage",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "FIELD_COORDINATOR": [
       "dashboard:view",
@@ -434,7 +462,9 @@
       "reports:create",
       "reports:update_notes",
       "reports:update_status",
-      "audit:view"
+      "audit:view",
+      "tasks:view",
+      "tasks:manage"
     ],
     "FIELD_WORKER": [
       "dashboard:view",
@@ -442,13 +472,15 @@
       "volunteers:view",
       "reports:view",
       "reports:create",
-      "reports:update_notes"
+      "reports:update_notes",
+      "tasks:view"
     ],
     "VIEWER": [
       "dashboard:view",
       "people:view",
       "volunteers:view",
-      "reports:view"
+      "reports:view",
+      "tasks:view"
     ]
   },
   "api": [
@@ -621,11 +653,99 @@
       }
     },
     {
+      "method": "GET/POST",
+      "path": "/api/tasks",
+      "note": {
+        "ar": "المهام الدائمة GEN-3: قائمة / إنشاء",
+        "en": "GEN-3 durable tasks: list / create"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id",
+      "note": {
+        "ar": "تفاصيل مهمة + checkpoints + سلامة السلسلة",
+        "en": "Task detail + checkpoints + chain integrity"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/approvals",
+      "note": {
+        "ar": "طلب موافقة ⇒ WAITING_APPROVAL (tasks:manage)",
+        "en": "Request approval ⇒ WAITING_APPROVAL (tasks:manage)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/resume",
+      "note": {
+        "ar": "استئناف بمنح ⇒ READY أو DENY (tasks:manage)",
+        "en": "Resume with grant ⇒ READY or DENY (tasks:manage)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/approvals/:id",
+      "note": {
+        "ar": "قرار بشري approved/rejected (users:manage)",
+        "en": "Human decision approved/rejected (users:manage)"
+      }
+    },
+    {
       "method": "GET",
       "path": "/api/debug/headers",
       "note": {
         "ar": "route تشخيص الحافة — يعكس 3 ترويسات IP فقط؛ 404 إلا مع L27_DEBUG_HEADERS=1 (مرحلة التحقق الحيّ — لا يُفعَّل في الإنتاج بعد T4)",
         "en": "Edge diagnostic route — reflects only 3 IP headers; 404 unless L27_DEBUG_HEADERS=1 (live-verification phase — never enabled in production after T4)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orchestrate/claims",
+      "note": {
+        "ar": "المطالبة بملكية التنفيذ (V5.3)",
+        "en": "Claim execution ownership (V5.3)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orchestrate/heartbeats",
+      "note": {
+        "ar": "تجديد الـlease بالنبض (V5.3)",
+        "en": "Renew the lease via heartbeat (V5.3)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orchestrate/releases",
+      "note": {
+        "ar": "تسليم الملكية طوعًا (V5.3)",
+        "en": "Voluntarily release ownership (V5.3)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orchestrate/steps",
+      "note": {
+        "ar": "تنفيذ خطوة مجانية (V5.3)",
+        "en": "Execute one free step (V5.3)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/orchestrate/batches",
+      "note": {
+        "ar": "دفعة تنفيذية مرتّبة (V5.3)",
+        "en": "Ordered execution batch (V5.3)"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orchestrate/tasks/:id/status",
+      "note": {
+        "ar": "لقطة حالة المهمة للاستطلاع (V5.3)",
+        "en": "Task status snapshot for polling (V5.3)"
       }
     }
   ],
@@ -749,6 +869,27 @@
       "note": {
         "ar": "بوابة الوكلاء: منطق JSON-RPC 2.0 لسطح MCP (قراءة فقط في V5.1)",
         "en": "Agent Gateway: JSON-RPC 2.0 logic for the MCP surface (read-only in V5.1)"
+      }
+    },
+    {
+      "path": "lib/tasks/",
+      "note": {
+        "ar": "محرك GEN-3: آلة الحالة، التجزئة، الاستئناف، المنح، GEN3_GATE — فوق Repos فقط",
+        "en": "GEN-3 engine: state machine, hashing, resume, grants, GEN3_GATE — on Repos only"
+      }
+    },
+    {
+      "path": "lib/workers/",
+      "note": {
+        "ar": "GEN-4: المنسّق الموزّع (إيجار/fencing/exactly-once)",
+        "en": "GEN-4: distributed coordinator (leases/fencing/exactly-once)"
+      }
+    },
+    {
+      "path": "lib/orchestrate/",
+      "note": {
+        "ar": "V5.3: خدمة المنسّق HTTP + البوابة",
+        "en": "V5.3: HTTP orchestrator service + gate"
       }
     }
   ],
@@ -990,6 +1131,41 @@
         "ar": "عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1",
         "en": "VS5 contract (LOCKED) — Agent Gateway · V5.1"
       }
+    },
+    {
+      "path": "docs/contract-gen3.md",
+      "label": {
+        "ar": "عقد GEN-3 (LOCKED) — محرك المهام الدائم",
+        "en": "GEN-3 contract (LOCKED) — Durable Task Engine"
+      }
+    },
+    {
+      "path": "docs/contract-gen4.md",
+      "label": {
+        "ar": "عقد GEN-4 (LOCKED)",
+        "en": "GEN-4 contract (LOCKED)"
+      }
+    },
+    {
+      "path": "docs/celiaos-blueprint-2026.md",
+      "label": {
+        "ar": "مخطط CeliaOS النهائي 2026 (مسودة)",
+        "en": "CeliaOS 2026 final blueprint (draft)"
+      }
+    },
+    {
+      "path": "docs/contract-v53.md",
+      "label": {
+        "ar": "عقد V5.3 (LOCKED)",
+        "en": "V5.3 contract (LOCKED)"
+      }
+    },
+    {
+      "path": "docs/plan-p1-consolidation.md",
+      "label": {
+        "ar": "خطة P1: التوحيد والاستفادة (مسودة)",
+        "en": "P1 consolidation plan (draft)"
+      }
     }
   ],
   "outOfScope": {
@@ -1154,5 +1330,56 @@
     "T4-5 Neon pooled DSN بـ -pooler — مع pool.max=5 و connectionTimeoutMillis=1500 وإلا timeouts متكررة.",
     "T4-6 L27_SESSION_SECRET ≥ 32 حرفًا عشوائيًا — التحقق من الطول في بدء التشغيل قائم (session.ts).",
     "T4-7 L27_SEED_DEMO_ACCOUNTS=0 (أو غائب) + L27_TRUST_EDGE=1 مقصود لا موروث + L27_ALLOWED_HOSTS=النطاق الحقيقي."
-  ]
+  ],
+  "extras": {
+    "tasksGen4": {
+      "goal": "تنسيق التنفيذ الموزّع: عمّال متعددون على Store واحد بإيجار + fencing + exactly-once (مكتبة، بلا HTTP جديد)",
+      "components": [
+        "lib/workers (المنسق)",
+        "leases/heartbeats/attempts في Store",
+        "GEN4_GATE"
+      ],
+      "key_results": [
+        "R7–R10",
+        "fencing tokens",
+        "attemptToken exactly-once",
+        "batch prefix-durable",
+        "GEN4_GATE خضراء"
+      ],
+      "guarantees": [
+        "zero edits: lib/tasks + lib/authorization",
+        "smoke 52/52",
+        "exclusive claim",
+        "reclaim replay-safe"
+      ],
+      "out_of_scope": [
+        "scheduling",
+        "orchestrator HTTP (مؤجل V5.3)"
+      ]
+    },
+    "orchestratorV53": {
+      "goal": "تعريض تنسيق GEN-4 عبر HTTP لعملاء مخوَّلين (6 مسارات، طبقة نقل رفيعة)",
+      "components": [
+        "lib/orchestrate (الخدمة)",
+        "app/api/orchestrate (المسارات الستة)",
+        "V53_GATE"
+      ],
+      "key_results": [
+        "D1 الرفض قيمة (200)",
+        "D2 هوية من الجلسة",
+        "D3 المدفوع fail-closed",
+        "D4 صفر سياسة جديدة"
+      ],
+      "guarantees": [
+        "zero edits: lib/tasks + lib/workers + lib/authorization",
+        "smoke 58/58",
+        "denials never 500"
+      ],
+      "out_of_scope": [
+        "SSE (استطلاع)",
+        "paid wiring (P2)",
+        "scheduling"
+      ]
+    }
+  }
 }
