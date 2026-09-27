@@ -228,6 +228,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | GEN-4 contract (LOCKED) |
 | [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | CeliaOS 2026 final blueprint (draft) |
 | [`docs/contract-v53.md`](docs/contract-v53.md) | V5.3 contract (LOCKED) |
+| [`docs/plan-p1-consolidation.md`](docs/plan-p1-consolidation.md) | P1 consolidation plan (draft) |
 
 ## Explicitly Out of Scope
 

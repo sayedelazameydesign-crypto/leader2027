@@ -1159,6 +1159,13 @@
         "ar": "عقد V5.3 (LOCKED)",
         "en": "V5.3 contract (LOCKED)"
       }
+    },
+    {
+      "path": "docs/plan-p1-consolidation.md",
+      "label": {
+        "ar": "خطة P1: التوحيد والاستفادة (مسودة)",
+        "en": "P1 consolidation plan (draft)"
+      }
     }
   ],
   "outOfScope": {

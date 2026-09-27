@@ -228,6 +228,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/contract-gen4.md`](docs/contract-gen4.md) | عقد GEN-4 (LOCKED) |
 | [`docs/celiaos-blueprint-2026.md`](docs/celiaos-blueprint-2026.md) | مخطط CeliaOS النهائي 2026 (مسودة) |
 | [`docs/contract-v53.md`](docs/contract-v53.md) | عقد V5.3 (LOCKED) |
+| [`docs/plan-p1-consolidation.md`](docs/plan-p1-consolidation.md) | خطة P1: التوحيد والاستفادة (مسودة) |
 
 ## خارج النطاق (صراحة)
 
