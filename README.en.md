@@ -9,7 +9,7 @@
 
 ## Status
 
-**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green**
+**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green****. · GEN-4: distributed execution via leases/fencing/exactly-once · zero edits in lib/tasks & lib/authorization · GEN4_GATE green {LAST_UPDATED}
 
 | Slice | Description | State | Evidence |
 | --- | --- | --- | --- |
@@ -181,7 +181,7 @@ tests/        unit / integration / smoke
 | Gate | Command | Expected |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **298/298** |
+| `tests` | `npm test` | **334/334 (12 skipped: pg-live)** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **52/52** |
 | `ci` | `GitHub Actions` | **PASS** |
@@ -217,6 +217,7 @@ CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.gith
 | [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | Idea: Trusted Agent Computer — beating Manus on trust, not autonomy |
 | [`docs/contract-vs5.md`](docs/contract-vs5.md) | VS5 contract (LOCKED) — Agent Gateway · V5.1 |
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | GEN-3 contract (LOCKED) — Durable Task Engine |
+| [`docs/contract-gen4.md`](docs/contract-gen4.md) | GEN-4 contract (LOCKED) |
 
 ## Explicitly Out of Scope
 

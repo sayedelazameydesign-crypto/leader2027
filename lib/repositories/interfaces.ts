@@ -205,6 +205,52 @@ export type TaskArtifactRecord = {
   createdAt: string;
 };
 
+/* ------------------------------------------------ GEN-4: ملكية التنفيذ الموزّع
+ *
+ * Leases + Heartbeats + Attempts — صفوف في نفس `Store` (المصدر الوحيد للحقيقة،
+ * D1). لا حالة ملكية في ذاكرة أي worker.
+ */
+
+export type TaskLeaseRecord = {
+  id: string;
+  taskId: string;
+  workerId: string;
+  /** رقم تصاعدي لكل lease جديد على نفس المهمة — الأحدث يكسب (fencing). */
+  fencingToken: number;
+  acquiredAt: string;
+  expiresAt: string;
+  lastHeartbeatAt: string;
+  /** طابع التسليم الطوعي — null تعني: انتهى أو ما زال نشطًا. */
+  releasedAt: string | null;
+};
+
+export type TaskHeartbeatRecord = {
+  id: string;
+  leaseId: string;
+  taskId: string;
+  workerId: string;
+  at: string;
+};
+
+export type TaskAttemptStatus = "executed";
+
+export type TaskAttemptRecord = {
+  id: string;
+  taskId: string;
+  stepId: string;
+  /** بصمة المقترح القانوني — مفتاح الـidempotency المستقر عبر الحقب. */
+  proposalHash: string;
+  /** بصمة (المقترح + الـfencing) — توثّق أي حقبة نفّذت. */
+  attemptToken: string;
+  fencingToken: number;
+  status: TaskAttemptStatus;
+  /** ملخص الدليل المسجَّل — يُعاد استعماله عند الاسترداد mid-step بدل إعادة النداء. */
+  evidenceHash: string;
+  /** النتيجة المقنّعة (§5-نظيفة) — مادة الاسترداد mid-step بلا إعادة نداء. */
+  result: unknown;
+  recordedAt: string;
+};
+
 export interface TasksRepo {
   createTask(task: Omit<TaskRecord, "id">): TaskRecord;
   getTask(id: string): TaskRecord | null;
@@ -223,6 +269,16 @@ export interface TasksRepo {
   listGrants(taskId: string): TaskGrantRecord[];
   createArtifact(artifact: Omit<TaskArtifactRecord, "id">): TaskArtifactRecord;
   listArtifacts(taskId: string): TaskArtifactRecord[];
+  /* GEN-4 */
+  createLease(lease: Omit<TaskLeaseRecord, "id">): TaskLeaseRecord;
+  getLease(id: string): TaskLeaseRecord | null;
+  updateLease(id: string, patch: Partial<TaskLeaseRecord>): TaskLeaseRecord | null;
+  listLeases(taskId: string): TaskLeaseRecord[];
+  recordHeartbeat(hb: Omit<TaskHeartbeatRecord, "id">): TaskHeartbeatRecord;
+  listHeartbeats(leaseId: string): TaskHeartbeatRecord[];
+  recordAttempt(attempt: Omit<TaskAttemptRecord, "id">): TaskAttemptRecord;
+  findAttempt(taskId: string, stepId: string, proposalHash: string): TaskAttemptRecord | null;
+  listAttempts(taskId: string): TaskAttemptRecord[];
 }
 
 export type Repos = {

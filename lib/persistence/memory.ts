@@ -14,8 +14,11 @@ import type {
   Repos,
   TaskApprovalRecord,
   TaskArtifactRecord,
+  TaskAttemptRecord,
   TaskCheckpoint,
   TaskGrantRecord,
+  TaskHeartbeatRecord,
+  TaskLeaseRecord,
   TaskRecord,
   TasksRepo,
   Team,
@@ -44,6 +47,10 @@ export type Store = {
   taskApprovals: TaskApprovalRecord[];
   taskGrants: TaskGrantRecord[];
   taskArtifacts: TaskArtifactRecord[];
+  /** GEN-4: ملكية التنفيذ — تُدمَج تلقائيًا في file/postgres عبر نفس المستند. */
+  taskLeases: TaskLeaseRecord[];
+  taskHeartbeats: TaskHeartbeatRecord[];
+  taskAttempts: TaskAttemptRecord[];
 };
 
 export function emptyStore(): Store {
@@ -62,6 +69,9 @@ export function emptyStore(): Store {
     taskApprovals: [],
     taskGrants: [],
     taskArtifacts: [],
+    taskLeases: [],
+    taskHeartbeats: [],
+    taskAttempts: [],
   };
 }
 
@@ -321,6 +331,48 @@ export function reposFromStore(store: Store): Repos {
     },
     listArtifacts(taskId) {
       return store.taskArtifacts.filter((a) => a.taskId === taskId);
+    },
+    createLease(lease) {
+      const created: TaskLeaseRecord = { ...lease, id: randomUUID() };
+      store.taskLeases.push(created);
+      return created;
+    },
+    getLease(id) {
+      return store.taskLeases.find((l) => l.id === id) ?? null;
+    },
+    updateLease(id, patch) {
+      const idx = store.taskLeases.findIndex((l) => l.id === id);
+      if (idx === -1) return null;
+      store.taskLeases[idx] = { ...store.taskLeases[idx], ...patch, id };
+      return store.taskLeases[idx];
+    },
+    listLeases(taskId) {
+      return store.taskLeases
+        .filter((l) => l.taskId === taskId)
+        .sort((a, b) => a.fencingToken - b.fencingToken);
+    },
+    recordHeartbeat(hb) {
+      const created: TaskHeartbeatRecord = { ...hb, id: randomUUID() };
+      store.taskHeartbeats.push(created);
+      return created;
+    },
+    listHeartbeats(leaseId) {
+      return store.taskHeartbeats.filter((h) => h.leaseId === leaseId);
+    },
+    recordAttempt(attempt) {
+      const created: TaskAttemptRecord = { ...attempt, id: randomUUID() };
+      store.taskAttempts.push(created);
+      return created;
+    },
+    findAttempt(taskId, stepId, proposalHash) {
+      return (
+        store.taskAttempts.find(
+          (a) => a.taskId === taskId && a.stepId === stepId && a.proposalHash === proposalHash,
+        ) ?? null
+      );
+    },
+    listAttempts(taskId) {
+      return store.taskAttempts.filter((a) => a.taskId === taskId);
     },
   };
 

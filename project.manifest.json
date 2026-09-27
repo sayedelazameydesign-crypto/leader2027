@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء**",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green**"
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء****. · GEN-4: تنفيذ موزّع بإيجار/fencing/exactly-once · صفر تعديل في lib/tasks وlib/authorization · GEN4_GATE خضراء {LAST_UPDATED}",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49** · GEN-3 (durable task engine) = **implemented — gates green****. · GEN-4: distributed execution via leases/fencing/exactly-once · zero edits in lib/tasks & lib/authorization · GEN4_GATE green {LAST_UPDATED}"
   },
   "principles": {
     "ar": [
@@ -95,7 +95,7 @@
     {
       "id": "tests",
       "script": "npm test",
-      "expected": "298/298"
+      "expected": "334/334 (12 skipped: pg-live)"
     },
     {
       "id": "build",
@@ -171,7 +171,8 @@
       "**مَقابض تعديل لكل ركن**: تعديل سلوك ركن واحد من الواجهة/الـAPI بلا نشر وبلا أثر على غيره",
       "**بوابة موافقة بشرية (2027)**: وكيل ذكاء اصطناعي لا يكتب بلا تصريح إنسان، والتصريح لاستخدام واحد",
       "**بوابة الوكلاء (MCP)**: سطح قراءة JSON-RPC للوكلاء الخارجيين — الكتابة مرفوضة قبل التنفيذ ومُوثَّقة في التدقيق (Replay)",
-      "**محرك مهام دائم (GEN-3)**: آلة حالة بنيوية + checkpoints مسلسلة + موافقات معلَّقة بمنح أحادية + استئناف بعد القتل"
+      "**محرك مهام دائم (GEN-3)**: آلة حالة بنيوية + checkpoints مسلسلة + موافقات معلَّقة بمنح أحادية + استئناف بعد القتل",
+      "GEN-4: تنفيذ موزّع للإيجار/fencing/exactly-once + GEN4_GATE (مكتبة، بلا HTTP جديد)"
     ],
     "en": [
       "Source-aware people records — with no political-preference fields",
@@ -188,7 +189,8 @@
       "**Per-corner knobs**: change one corner's behavior from the UI/API with no redeploy and no effect on others",
       "**Human approval gate (2027)**: an AI agent cannot write without a human authorization, and each authorization is single-use",
       "**Agent Gateway (MCP)**: a read-only JSON-RPC surface for external agents — writes rejected pre-execution and audited (replayable)",
-      "**Durable task engine (GEN-3)**: structural state machine + hash-chained checkpoints + pending approvals with single-use grants + resume-after-kill"
+      "**Durable task engine (GEN-3)**: structural state machine + hash-chained checkpoints + pending approvals with single-use grants + resume-after-kill",
+      "GEN-4: distributed leases/fencing/exactly-once execution + GEN4_GATE (library, no new HTTP)"
     ]
   },
   "levels": {
@@ -1072,6 +1074,13 @@
         "ar": "عقد GEN-3 (LOCKED) — محرك المهام الدائم",
         "en": "GEN-3 contract (LOCKED) — Durable Task Engine"
       }
+    },
+    {
+      "path": "docs/contract-gen4.md",
+      "label": {
+        "ar": "عقد GEN-4 (LOCKED)",
+        "en": "GEN-4 contract (LOCKED)"
+      }
     }
   ],
   "outOfScope": {
@@ -1236,5 +1245,32 @@
     "T4-5 Neon pooled DSN بـ -pooler — مع pool.max=5 و connectionTimeoutMillis=1500 وإلا timeouts متكررة.",
     "T4-6 L27_SESSION_SECRET ≥ 32 حرفًا عشوائيًا — التحقق من الطول في بدء التشغيل قائم (session.ts).",
     "T4-7 L27_SEED_DEMO_ACCOUNTS=0 (أو غائب) + L27_TRUST_EDGE=1 مقصود لا موروث + L27_ALLOWED_HOSTS=النطاق الحقيقي."
-  ]
+  ],
+  "extras": {
+    "tasksGen4": {
+      "goal": "تنسيق التنفيذ الموزّع: عمّال متعددون على Store واحد بإيجار + fencing + exactly-once (مكتبة، بلا HTTP جديد)",
+      "components": [
+        "lib/workers (المنسق)",
+        "leases/heartbeats/attempts في Store",
+        "GEN4_GATE"
+      ],
+      "key_results": [
+        "R7–R10",
+        "fencing tokens",
+        "attemptToken exactly-once",
+        "batch prefix-durable",
+        "GEN4_GATE خضراء"
+      ],
+      "guarantees": [
+        "zero edits: lib/tasks + lib/authorization",
+        "smoke 52/52",
+        "exclusive claim",
+        "reclaim replay-safe"
+      ],
+      "out_of_scope": [
+        "scheduling",
+        "orchestrator HTTP (مؤجل V5.3)"
+      ]
+    }
+  }
 }

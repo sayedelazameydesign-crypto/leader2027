@@ -173,6 +173,62 @@ function contractSuite(name: string, factory: () => Repos) {
       });
       expect(repos.tasks.listArtifacts(task.id)).toHaveLength(1);
     });
+
+    it("GEN-4 leases: create/read/update/list + heartbeats", () => {
+      const task = repos.tasks.createTask({
+        goal: "عقد الإيجار",
+        status: "READY",
+        plan: [],
+        checkpointHead: "",
+        evidenceChainHead: "EVIDENCE-GENESIS",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const lease = repos.tasks.createLease({
+        taskId: task.id,
+        workerId: "worker-a",
+        fencingToken: 1,
+        acquiredAt: now,
+        expiresAt: now,
+        lastHeartbeatAt: now,
+        releasedAt: null,
+      });
+      expect(lease.id).toBeTruthy();
+      expect(repos.tasks.getLease(lease.id)?.workerId).toBe("worker-a");
+      expect(repos.tasks.getLease("missing")).toBeNull();
+      expect(repos.tasks.updateLease(lease.id, { releasedAt: now })?.releasedAt).toBe(now);
+      expect(repos.tasks.listLeases(task.id)).toHaveLength(1);
+      expect(repos.tasks.listLeases("other")).toHaveLength(0);
+
+      const hb = repos.tasks.recordHeartbeat({
+        leaseId: lease.id,
+        taskId: task.id,
+        workerId: "worker-a",
+        at: now,
+      });
+      expect(hb.id).toBeTruthy();
+      expect(repos.tasks.listHeartbeats(lease.id)).toHaveLength(1);
+      expect(repos.tasks.listHeartbeats("other")).toHaveLength(0);
+    });
+
+    it("GEN-4 attempts: record/find/list (مفتاح idempotency مستقر)", () => {
+      const attempt = repos.tasks.recordAttempt({
+        taskId: "t1",
+        stepId: "pay",
+        proposalHash: "p",
+        attemptToken: "tok-1",
+        fencingToken: 1,
+        status: "executed",
+        evidenceHash: "e",
+        result: { receipt: "r" },
+        recordedAt: now,
+      });
+      expect(attempt.id).toBeTruthy();
+      expect(repos.tasks.findAttempt("t1", "pay", "p")?.attemptToken).toBe("tok-1");
+      expect(repos.tasks.findAttempt("t1", "pay", "other")).toBeNull();
+      expect(repos.tasks.listAttempts("t1")).toHaveLength(1);
+      expect(repos.tasks.listAttempts("t2")).toHaveLength(0);
+    });
   });
 }
 

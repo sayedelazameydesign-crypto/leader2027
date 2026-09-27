@@ -9,7 +9,7 @@
 
 ## الحالة
 
-**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء**
+**VS4** — VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49** · GEN-3 (محرك المهام الدائم) = **منفَّذ — بوابات خضراء****. · GEN-4: تنفيذ موزّع بإيجار/fencing/exactly-once · صفر تعديل في lib/tasks وlib/authorization · GEN4_GATE خضراء {LAST_UPDATED}
 
 | الشريحة | الوصف | الحالة | الدليل |
 | --- | --- | --- | --- |
@@ -181,7 +181,7 @@ tests/        unit / integration / smoke
 | البوابة | الأمر | المتوقع |
 | --- | --- | --- |
 | `typecheck` | `npm run typecheck` | **clean** |
-| `tests` | `npm test` | **298/298** |
+| `tests` | `npm test` | **334/334 (12 skipped: pg-live)** |
 | `build` | `npm run build` | **PASS** |
 | `smoke` | `npm run smoke` | **52/52** |
 | `ci` | `GitHub Actions` | **PASS** |
@@ -217,6 +217,7 @@ CI يشغّل هذه البوابات كلها على كل push/PR — انظر 
 | [`docs/idea-trusted-agent-computer.md`](docs/idea-trusted-agent-computer.md) | فكرة: الجهاز الوكيلي الموثوق — كيف نتفوق على Manus في الثقة لا الاستقلالية |
 | [`docs/contract-vs5.md`](docs/contract-vs5.md) | عقد VS5 (LOCKED) — بوابة الوكلاء · V5.1 |
 | [`docs/contract-gen3.md`](docs/contract-gen3.md) | عقد GEN-3 (LOCKED) — محرك المهام الدائم |
+| [`docs/contract-gen4.md`](docs/contract-gen4.md) | عقد GEN-4 (LOCKED) |
 
 ## خارج النطاق (صراحة)
 

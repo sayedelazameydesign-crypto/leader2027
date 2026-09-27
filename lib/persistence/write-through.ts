@@ -145,6 +145,26 @@ export function withWriteThrough(repos: Repos, flush: () => void): Repos {
         flush();
         return created;
       },
+      createLease(lease) {
+        const created = repos.tasks.createLease(lease);
+        flush();
+        return created;
+      },
+      updateLease(id, patch) {
+        const updated = repos.tasks.updateLease(id, patch);
+        flush();
+        return updated;
+      },
+      recordHeartbeat(hb) {
+        const created = repos.tasks.recordHeartbeat(hb);
+        flush();
+        return created;
+      },
+      recordAttempt(attempt) {
+        const created = repos.tasks.recordAttempt(attempt);
+        flush();
+        return created;
+      },
     },
   };
 }
