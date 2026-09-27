@@ -34,6 +34,11 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # shell: bash صراحةً ⇒ `-eo pipefail`. الافتراضي (`bash -e {0}`) بلا pipefail كان يجعل
+    # `node … | tee …` يُرجع رمز خروج tee دائمًا ⇒ نجاح أخضر ولو فشل التحقق/الـsmoke.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

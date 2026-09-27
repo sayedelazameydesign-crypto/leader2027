@@ -1,0 +1,72 @@
+# T4 — دليل الإنتاج (READ ONLY): بوابة ما قبل الإطلاق.
+#
+# لماذا Actions؟ بيئة التطوير محجوبة عن Vercel وNeon (api.github.com فقط)، والأسرار
+# لا تمرّ عبر أي محادثة — تُضاف مرة واحدة في GitHub > Settings > Secrets > Actions:
+#   DATABASE_URL_CHECK_ONLY  رابط Neon (يُفضَّل دور قراءة فقط؛ السكربت يفرض READ ONLY أيضًا)
+#   VERCEL_TOKEN             (اختياري) لقراءة حالة L27_SEED_DEMO_ACCOUNTS في Production
+# متغيرات اختيارية (Variables): VERCEL_PROJECT · VERCEL_TEAM_SLUG · T4_BASE_URL
+#
+# التشغيل:  gh workflow run t4-prod-evidence.yml --ref <branch>
+# القراءة (سجلات الـrunner محجوبة في بيئة التطوير — التعليقات تُقرأ عبر API):
+#   gh api repos/<owner>/<repo>/check-runs/<job_id>/annotations
+# لا كتابة على القاعدة إطلاقًا (DATABASE MUTATION = DENIED) — الإزالة خطوة مستقلة مصرَّح بها.
+name: "T4 prod evidence (read-only)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "رابط الإنتاج للمؤشر الإعلامي LIVE (اختياري)"
+        required: false
+        type: string
+  push:
+    branches: [arena/01a0e068-leader2027]
+    paths:
+      - ".github/workflows/t4-prod-evidence.yml"
+      - "scripts/t4-prod-evidence.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    # shell: bash صراحةً ⇒ `-eo pipefail` — لا إخفاء لرمز الخروج خلف أنابيب (درس t4-verify).
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+
+      - name: "Secrets presence (names only)"
+        env:
+          DATABASE_URL_CHECK_ONLY: ${{ secrets.DATABASE_URL_CHECK_ONLY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          for v in DATABASE_URL_CHECK_ONLY VERCEL_TOKEN; do
+            if [ -n "${!v}" ]; then echo "::notice title=secrets::$v = present"; else echo "::notice title=secrets::$v = absent"; fi
+          done
+
+      - name: "NEON read-only count + VERCEL env state + LIVE indicator"
+        env:
+          DATABASE_URL_CHECK_ONLY: ${{ secrets.DATABASE_URL_CHECK_ONLY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT }}
+          VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
+          BASE_URL: ${{ inputs.base_url || vars.T4_BASE_URL || 'https://leader2027-19f4sdope-celia-fashions-projects.vercel.app' }}
+          L27_EVIDENCE_OUT: /tmp/t4-prod-evidence.txt
+        run: node scripts/t4-prod-evidence.mjs
+
+      - name: "Job summary (redacted evidence)"
+        if: always()
+        run: |
+          {
+            echo "## T4 prod evidence (read-only) — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '```text'
+            cat /tmp/t4-prod-evidence.txt 2>/dev/null || echo "(no evidence file — script did not reach output stage)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
