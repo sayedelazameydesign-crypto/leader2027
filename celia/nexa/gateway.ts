@@ -32,7 +32,7 @@ import {
   type StageEntry,
 } from "./protocol.ts";
 import type { CapabilityRegistry } from "./capability.ts";
-import { evaluatePolicy, type PolicyDecision, type PolicyRule, type PrivacyMode } from "./policy.ts";
+import { DEFAULT_SPEND_CAP_USD, evaluatePolicy, type PolicyDecision, type PolicyRule, type PrivacyMode } from "./policy.ts";
 import { authorize, consumeGrant, type AuthorizationResult, type Grant } from "./authorization.ts";
 import type { CostGuard } from "./cost-guard.ts";
 import { runAction, type ExecutionBoundary, type Observation } from "./execution.ts";
@@ -69,7 +69,8 @@ export type GatewayRequest = {
   arguments: Record<string, unknown>;
   risk: RiskLevel;
   dataClass: DataClass;
-  maxCostUsd: number;
+  /** سقف الإنفاق بالدولار. غير محدد ⇒ DEFAULT_SPEND_CAP_USD (0). غير صالح ⇒ DENY في السياسة، لا تصحيح صامت. */
+  maxCostUsd?: number;
   proposedBy: string;
   simulated?: boolean;
 };
@@ -164,7 +165,7 @@ export class ExecutionGateway {
       arguments: req.arguments,
       risk: req.risk,
       dataClass: req.dataClass,
-      maxCostUsd: req.maxCostUsd,
+      maxCostUsd: req.maxCostUsd === undefined ? DEFAULT_SPEND_CAP_USD : req.maxCostUsd,
       proposedBy: req.proposedBy,
       at,
     };
@@ -197,7 +198,7 @@ export class ExecutionGateway {
     const requestsResource = this.cfg.resources?.[cap.provider]?.requests;
     if (this.cfg.resourceGuard && requestsResource) {
       const a = this.cfg.resourceGuard.admit(requestsResource, 1, { risk: proposal.risk, paid });
-      findings.push({ rule: "resources", severity: a.ok ? "info" : "deny", reason: a.reason });
+      findings.push({ rule: "resources", severity: a.ok ? "info" : "deny", code: a.ok ? "NEXA_I_QUOTA" : "NEXA_E_QUOTA", reason: a.reason });
     }
     const policy: PolicyDecision = {
       decision: findings.some((f) => f.severity === "deny") ? "DENY" : findings.some((f) => f.severity === "require_approval") ? "REQUIRE_APPROVAL" : "ADMIT",

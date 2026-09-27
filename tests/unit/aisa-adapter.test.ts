@@ -280,8 +280,8 @@ describe("AIsa governed adapter (GEN-1) — provider is the only network path", 
 
   it("candidateCapability maps get_details into NEXA terms (cost model, risk, trust) without inventing availability", () => {
     const cap = candidateCapability({ operation_id: "x", read_only: true, side_effects: [], availability: "unknown", price: { usd: 0.24, currency: "USD" } });
-    expect(cap).toMatchObject({ id: "aisa:use:x", risk: "read", costModel: "fixed", fixedCostUsd: 0.24, readOnly: true, trust: "unknown" });
-    expect(candidateCapability({ operation_id: "y", read_only: false, availability: "ga", price: "dynamic" })).toMatchObject({ risk: "write", costModel: "dynamic", fixedCostUsd: null, trust: "declared" });
+    expect(cap).toMatchObject({ id: "aisa:use:x", risk: "read", costModel: "fixed", fixedCostUsd: 0.24, readOnly: true, trust: "declared", availability: "unknown" }); // decision §1: unknown ⇒ NEXA denies
+    expect(candidateCapability({ operation_id: "y", read_only: false, availability: "ga", price: "dynamic" })).toMatchObject({ risk: "write", costModel: "dynamic", fixedCostUsd: null, trust: "declared", availability: "known" });
   });
 });
 

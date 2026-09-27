@@ -22,7 +22,7 @@ on:
       max_price_usd:
         description: "سقف السياسة بالدولار لقرار الاقتراح (لا تنفيذ على أي حال)"
         required: false
-        default: "0.01"
+        default: "0"
         type: string
   push:
     branches: [arena/01a0e068-leader2027]
@@ -56,7 +56,7 @@ jobs:
           AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
           QUERY: ${{ inputs.query || 'extract the readable text content of a public documentation web page given its URL' }}
           CATEGORY: ${{ inputs.category || 'search' }}
-          MAX_PRICE_USD: ${{ inputs.max_price_usd || '0.01' }}
+          MAX_PRICE_USD: ${{ inputs.max_price_usd || '0' }}  # DEFAULT_SPEND_CAP_USD = 0 (free-first); raising it is an explicit owner input, never a default
         run: |
           node celia/adapters/aisa/pipeline.ts \
             --query "$QUERY" ${CATEGORY:+--category "$CATEGORY"} --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
@@ -72,6 +72,26 @@ jobs:
           node celia/adapters/aisa/bridge.ts \
             --in /tmp/aisa-adapter-evidence.json --contract celia/adapters/aisa/contract.readonly.json \
             --graph /tmp/aisa-evidence-graph.jsonl --out /tmp/aisa-nexa.txt
+
+      # Celia GEN-2 Agent Core: هدف → فهم → عقد → خطة → كل خطوة اقتراح إلى البوابة → ملاحظة → تحقق → إعادة تخطيط عند الفشل → حكم العقد.
+      # المفتاح من البيئة فقط؛ الوكيل لا يملك مسارًا شبكيًا مباشرًا. الخروج 0 فقط عند COMPLETED.
+      - name: "Celia agent (GEN-2): goal -> plan -> gated actions -> verify -> replan"
+        if: always()
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+          QUERY: ${{ inputs.query || 'extract the readable text content of a public documentation web page given its URL' }}
+        run: |
+          node celia/adapters/aisa/agent.ts --goal "discover aisa tools for $QUERY" --limit 3 \
+            --json /tmp/aisa-agent.json --checkpoints /tmp/aisa-agent-checkpoints.jsonl --graph /tmp/aisa-agent-graph.jsonl \
+            | tee /tmp/aisa-agent.txt
+          exit "${PIPESTATUS[0]}"
+
+      # إعادة offline: سلسلة نقاط التفتيش + شرعية الانتقالات + سلسلة الدليل + إعادة حساب النتيجة + كل محاولة لها إيصال ⇒ GEN2_GATE. الخروج 0 فقط عند PASS.
+      - name: "Celia agent replay (GEN2_GATE, offline)"
+        if: always()
+        run: |
+          if [ ! -f /tmp/aisa-agent.json ]; then echo "::notice title=GEN2_GATE::GEN2_GATE runtime=NOT_VERIFIED (agent produced no JSON report)"; exit 1; fi
+          node celia/core/agent/replay.ts --in /tmp/aisa-agent.json
 
       - name: "Job summary (redacted evidence)"
         if: always()
@@ -95,6 +115,16 @@ jobs:
             echo
             echo '```json'
             cat /tmp/aisa-adapter-evidence.json 2>/dev/null || echo "{}"
+            echo '```'
+            echo '</details>'
+            echo "### Celia agent run (GEN-2) — goal -> plan -> gated actions -> verify -> replan"
+            echo '```text'
+            grep -vE '^::' /tmp/aisa-agent.txt 2>/dev/null || echo "(no agent output)"
+            echo '```'
+            echo '<details><summary>agent checkpoints (JSONL, hash-chained)</summary>'
+            echo
+            echo '```text'
+            cat /tmp/aisa-agent-checkpoints.jsonl 2>/dev/null || echo "(no checkpoints)"
             echo '```'
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"

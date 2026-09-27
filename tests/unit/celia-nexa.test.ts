@@ -4,6 +4,7 @@ import {
   CAPABILITY_LADDER,
   CapabilityRegistry,
   CostGuard,
+  DEFAULT_SPEND_CAP_USD,
   DeniedExecutor,
   NexaError,
   SimulationExecutor,
@@ -14,6 +15,7 @@ import {
   consumeGrant,
   evaluatePolicy,
   openAction,
+  policyCodes,
   proposalHash,
   raiseLadder,
   runAction,
@@ -25,7 +27,7 @@ import {
 const NOW = "2026-09-26T12:00:00.000Z";
 const LATER = "2026-09-26T12:00:01.000Z";
 
-const readCap: Capability = { id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "1", trust: "declared" };
+const readCap: Capability = { id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "1", trust: "declared", availability: "known" };
 const paidCap: Capability = { ...readCap, id: "aisa:post_tavily_crawl", kind: "tool", costModel: "fixed", fixedCostUsd: 0.24, trust: "unknown" };
 const writeCap: Capability = { ...readCap, id: "github", provider: "github.com", risk: "write", readOnly: false, dataClearance: "PRIVATE" };
 const destructiveCap: Capability = { ...writeCap, id: "fs", provider: "local", risk: "destructive", dataClearance: "CRITICAL" };
@@ -47,6 +49,7 @@ const proposal = (over: Partial<Proposal> = {}): Proposal => ({
 const grant = (over: Partial<Grant> = {}): Grant => ({
   id: "g1",
   grantedBy: "owner",
+  principal: "human",
   role: "owner",
   scope: { capability: "github", operation: null, proposalHash: null },
   maxCostUsd: 1,
@@ -133,6 +136,23 @@ describe("NEXA policy", () => {
     expect(paidRead.decision).toBe("REQUIRE_APPROVAL"); // paid execution is OFF BY DEFAULT — even for reads
     expect(paidRead.findings.map((f) => f.reason).join()).toMatch(/requires human approval/);
     expect(evaluatePolicy(ctx(readCap, proposal({ maxCostUsd: 0.5 }))).decision).toBe("REQUIRE_APPROVAL"); // cost cap on a free capability still needs a human
+    // decision §2: DEFAULT_SPEND_CAP_USD = 0; unset/invalid caps never become allowed
+    expect(DEFAULT_SPEND_CAP_USD).toBe(0);
+    for (const bad of [Number.NaN, -1, Number.POSITIVE_INFINITY, undefined as unknown as number]) {
+      const d = evaluatePolicy(ctx(readCap, proposal({ maxCostUsd: bad })));
+      expect(d.decision).toBe("DENY");
+      expect(policyCodes(d)).toContain("NEXA_E_COST_CAP_INVALID");
+    }
+    expect(policyCodes(evaluatePolicy(ctx({ ...readCap, costModel: "dynamic" }, proposal())))).toEqual(["NEXA_E_COST_UNKNOWN"]);
+    expect(policyCodes(evaluatePolicy(ctx(fixed, proposal({ maxCostUsd: 0 }))))).toEqual(["NEXA_E_COST_EXCEEDS_CAP", "NEXA_A_PAID"]);
+  });
+
+  it("decision §1: availability=unknown ⇒ DENY with NEXA_E_AVAILABILITY_UNKNOWN (a missing precondition, not an approvable risk)", () => {
+    const d = evaluatePolicy(ctx({ ...readCap, availability: "unknown" }, proposal()));
+    expect(d.decision).toBe("DENY");
+    expect(policyCodes(d)).toEqual(["NEXA_E_AVAILABILITY_UNKNOWN"]);
+    expect(evaluatePolicy(ctx({ ...readCap, availability: undefined as unknown as "known" }, proposal())).decision).toBe("DENY"); // missing ≠ known
+    expect(evaluatePolicy(ctx({ ...readCap, trust: "unknown" }, proposal())).decision).toBe("REQUIRE_APPROVAL"); // trust stays a separate axis
   });
 
   it("write/admin need approval, understated risk is denied, destructive needs simulation, unknown trust needs approval", () => {
@@ -144,6 +164,7 @@ describe("NEXA policy", () => {
     const p = evaluatePolicy(ctx(paidCap, proposal({ capability: paidCap.id, maxCostUsd: 0.01 })));
     expect(p.decision).toBe("DENY");
     expect(p.findings.map((f) => f.rule)).toEqual(expect.arrayContaining(["cost", "trust"]));
+    expect(policyCodes(p)).toEqual(expect.arrayContaining(["NEXA_E_COST_EXCEEDS_CAP", "NEXA_A_TRUST_UNKNOWN"]));
     expect(evaluatePolicy(ctx({ ...paidCap, fixedCostUsd: 0.001 }, proposal({ capability: paidCap.id, maxCostUsd: 0.01 }))).decision).toBe("REQUIRE_APPROVAL");
     expect(evaluatePolicy(ctx({ ...paidCap, fixedCostUsd: 0.001, trust: "declared" }, proposal({ capability: paidCap.id, maxCostUsd: 0.01 }))).decision).toBe("REQUIRE_APPROVAL");
   });
@@ -182,6 +203,26 @@ describe("NEXA authorization — grants are scoped, single-use, hash-bound", () 
     const used = consumeGrant(bound, NOW);
     expect(() => consumeGrant(used, LATER)).toThrow(/already consumed/);
     expect(authorize(write, requireApproval, [used], LATER).authorized).toBe(false);
+  });
+
+  it("decision §3: authority is human-only; a paid execution needs a single-use grant bound to proposal hash, operation and cost ceiling", () => {
+    expect(authorize(write, requireApproval, [grant({ principal: "agent", scope: { capability: "github", operation: "git.push", proposalHash: proposalHash(write) } })], NOW).reasons.join()).toMatch(/human only/);
+    expect(authorize(write, requireApproval, [grant({ principal: "system", scope: { capability: "github", operation: "git.push", proposalHash: proposalHash(write) } })], NOW).authorized).toBe(false);
+    const paidCapOk = { ...paidCap, fixedCostUsd: 0.001, trust: "declared" as const };
+    const paid = proposal({ capability: paidCap.id, operation: "post_tavily_crawl", maxCostUsd: 0.01 });
+    const policy = evaluatePolicy(ctx(paidCapOk, paid));
+    expect(policy.decision).toBe("REQUIRE_APPROVAL");
+    const loose = grant({ scope: { capability: paidCap.id, operation: null, proposalHash: null }, maxCostUsd: 1, singleUse: false });
+    expect(authorize(paid, policy, [loose], NOW).reasons.join()).toMatch(/bound to the proposal hash/);
+    expect(authorize(paid, policy, [{ ...loose, scope: { ...loose.scope, proposalHash: proposalHash(paid) } }], NOW).reasons.join()).toMatch(/bound to one operation/);
+    expect(authorize(paid, policy, [{ ...loose, scope: { capability: paidCap.id, operation: "post_tavily_crawl", proposalHash: proposalHash(paid) } }], NOW).reasons.join()).toMatch(/single-use/);
+    const full = grant({ scope: { capability: paidCap.id, operation: "post_tavily_crawl", proposalHash: proposalHash(paid) }, maxCostUsd: 0.01, singleUse: true });
+    const ok = authorize(paid, policy, [full], NOW);
+    expect(ok).toMatchObject({ authorized: true, basis: "grant" });
+    expect(ok.stamp).toMatchObject({ principal: "human", approvedBy: "owner" });
+    // and the boundary re-checks the human principal even if authorization were forged
+    expect(() => assertExecutable({ proposal: paid, policy, authorization: { ...ok, stamp: { ...ok.stamp!, principal: "agent" } }, reservationId: "res-1" })).toThrow(/without human grant/);
+    expect(() => assertExecutable({ proposal: paid, policy, authorization: ok, reservationId: "res-1" })).not.toThrow();
   });
 });
 
@@ -222,7 +263,7 @@ describe("NEXA execution boundary", () => {
     await expect(runAction(spy, { ...base, authorization: { ...authorized, authorized: false } })).rejects.toMatchObject({ code: "NOT_AUTHORIZED" });
     await expect(runAction(spy, { ...base, proposal: proposal({ risk: "write" }), policy: { decision: "REQUIRE_APPROVAL", findings: [] } })).rejects.toMatchObject({ code: "APPROVAL_REQUIRED" });
     await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }) })).rejects.toMatchObject({ code: "APPROVAL_REQUIRED" }); // paid read without a grant
-    await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }), authorization: { ...authorized, basis: "grant" } })).rejects.toMatchObject({ code: "NO_RESERVATION" });
+    await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }), authorization: { ...authorized, basis: "grant", stamp: { grantId: "g", principal: "human", proposalHash: "h", approvedBy: "owner", role: "owner", at: NOW } } })).rejects.toMatchObject({ code: "NO_RESERVATION" });
     expect(calls).toBe(0);
     expect(() => assertExecutable(base)).not.toThrow();
     await runAction(spy, base);

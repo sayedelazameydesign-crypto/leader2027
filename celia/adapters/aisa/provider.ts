@@ -73,6 +73,7 @@ export function registerAisaCapabilities(registry: CapabilityRegistry): void {
       readOnly: true,
       version: AISA_CAPABILITY_VERSION,
       trust: "declared",
+      availability: "known", // موثّق في الكتالوج ومُثبَت بالدليل في كل تشغيل (list_categories 200)
     });
   }
 }
@@ -92,6 +93,8 @@ export function candidateCapability(details: OperationDetails): Capability {
     dataClearance: "INTERNAL",
     readOnly,
     version: "get_details",
-    trust: /^(available|live|ok|ga|stable|active|online|enabled|ready|healthy)$/.test(availability) ? "declared" : "unknown",
+    // trust = مصدر الوصف (الكتالوج يعلن)؛ availability = هل التوفّر معروف؟ "unknown" حرفيًا من المزوّد ⇒ unknown ⇒ NEXA_E_AVAILABILITY_UNKNOWN.
+    trust: "declared",
+    availability: /^(available|live|ok|ga|stable|active|online|enabled|ready|healthy)$/.test(availability) ? "known" : "unknown",
   };
 }

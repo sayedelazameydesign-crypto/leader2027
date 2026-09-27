@@ -19,7 +19,7 @@ import {
 let tick = 0;
 const now = () => `2026-09-26T12:00:${String(tick++ % 60).padStart(2, "0")}.000Z`;
 
-const readCap: Capability = { id: "p:read", kind: "tool", provider: "p", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "1", trust: "declared" };
+const readCap: Capability = { id: "p:read", kind: "tool", provider: "p", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "1", trust: "declared", availability: "known" };
 const paidCap: Capability = { ...readCap, id: "p:paid", costModel: "fixed", fixedCostUsd: 0.005 };
 const writeCap: Capability = { ...readCap, id: "p:write", risk: "write", readOnly: false };
 const alienCap: Capability = { ...readCap, id: "alien:read", provider: "alien" };
@@ -114,7 +114,7 @@ describe("ExecutionGateway — NEXA decides BEFORE execution", () => {
   });
 
   it("no approval → no risky execution: write without a grant is DENIED at APPROVAL; with a matching grant it executes once and burns the grant", async () => {
-    const grant: Grant = { id: "g1", grantedBy: "owner", role: "owner", scope: { capability: "p:write", operation: "write", proposalHash: null }, maxCostUsd: 0, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: true, usedAt: null };
+    const grant: Grant = { id: "g1", grantedBy: "owner", principal: "human", role: "owner", scope: { capability: "p:write", operation: "write", proposalHash: null }, maxCostUsd: 0, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: true, usedAt: null };
     const h = harness({ grants: [grant] });
     const granted = await h.gateway.submit(request({ capability: "p:write", operation: "write", risk: "write", arguments: { path: "a" }, proposedBy: "agent" }));
     // grant is scoped to capability+operation (hash-free) ⇒ this write executes, once
@@ -131,7 +131,7 @@ describe("ExecutionGateway — NEXA decides BEFORE execution", () => {
   });
 
   it("paid actions need a grant AND a reservation; observed cost settles the reservation; budget exhaustion ⇒ DENIED at COST", async () => {
-    const grant = (id: string): Grant => ({ id, grantedBy: "owner", role: "owner", scope: { capability: "p:paid", operation: null, proposalHash: null }, maxCostUsd: 0.01, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: true, usedAt: null });
+    const grant = (id: string): Grant => ({ id, grantedBy: "owner", principal: "human", role: "owner", scope: { capability: "p:paid", operation: "paid", proposalHash: proposalHash({ capability: "p:paid", operation: "paid", arguments: { q: "x" }, maxCostUsd: 0.005 }) }, maxCostUsd: 0.01, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: true, usedAt: null });
     const h = harness({ grants: [grant("g1"), grant("g2")], provider: async (op) => ({ ok: true, status: 200, summary: `${op} ok`, costUsd: 0.004, sideEffects: [] }), limits: { perTaskUsd: 0.006, perAgentUsd: 0.006, totalUsd: 0.006 } });
     const first = await h.gateway.submit(request({ capability: "p:paid", operation: "paid", maxCostUsd: 0.005 }));
     expect(first).toMatchObject({ outcome: "EXECUTED", verified: true, reservationId: "res-1" });
@@ -142,7 +142,7 @@ describe("ExecutionGateway — NEXA decides BEFORE execution", () => {
   });
 
   it("boundary failure ⇒ DENIED at EXECUTION, reservation released; observation contradicting the proposal is not verified", async () => {
-    const grant: Grant = { id: "g", grantedBy: "owner", role: "owner", scope: { capability: "p:paid", operation: null, proposalHash: null }, maxCostUsd: 1, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: false, usedAt: null };
+    const grant: Grant = { id: "g", grantedBy: "owner", principal: "human", role: "owner", scope: { capability: "p:paid", operation: "paid", proposalHash: proposalHash({ capability: "p:paid", operation: "paid", arguments: { q: "x" }, maxCostUsd: 0.005 }) }, maxCostUsd: 1, expiresAt: "2027-01-01T00:00:00.000Z", singleUse: true, usedAt: null };
     const h = harness({ grants: [grant], provider: async () => { throw new Error("provider exploded"); } });
     const r = await h.gateway.submit(request({ capability: "p:paid", operation: "paid", maxCostUsd: 0.005 }));
     expect(r).toMatchObject({ outcome: "DENIED", deniedAt: "EXECUTION", stage: "EXECUTION", ladder: "EXECUTABLE" });

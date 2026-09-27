@@ -84,11 +84,11 @@ describe("Celia · AIsa evidence bridge (GEN-1: verifies the gateway's own runti
     expect(r.verdict.status).toBe("COMPLETED");
     expect(r.gen1).toEqual({ runtime: "PASS", parts: { pre_execution_gate: "true", paid_use: "false", secret_exposure: "false", runtime_evidence_tampered: "false", tests_pass: "ci" } });
     expect(r.details.gateway).toBe("submitted=8 executed=6 transport_calls=6 ungated_calls=0 ordered_receipts=yes");
-    expect(r.details.gateway_denied).toBe("POLICY:1,APPROVAL:1");
+    expect(r.details.gateway_denied).toBe("POLICY:2"); // decision §1: availability unknown ⇒ DENY at POLICY (no approval path)
     expect(r.capability).toEqual({ id: "aisa", state: "AVAILABLE", evidence: ["action:act-3"] }); // the list_categories receipt, not a claim
     expect(r.receipts.filter((x) => x.operation.startsWith("use:") && x.operation !== "use:account")).toEqual([
       expect.objectContaining({ operation: "use:post_tavily_crawl", outcome: "DENIED", deniedAt: "POLICY", policy: "DENY" }),
-      expect.objectContaining({ operation: "use:post_firecrawl_scrape", outcome: "DENIED", deniedAt: "APPROVAL", policy: "REQUIRE_APPROVAL" }),
+      expect.objectContaining({ operation: "use:post_firecrawl_scrape", outcome: "DENIED", deniedAt: "POLICY", policy: "DENY" }),
     ]);
     expect(r.receipts.filter((x) => x.outcome === "EXECUTED").every(receiptGatedBeforeExecution)).toBe(true);
     // the bridge continued the runtime chain (same head lineage), and the result replays

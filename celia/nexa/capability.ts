@@ -10,6 +10,11 @@ import { CAPABILITY_LADDER, NexaError, ladderRank, type CapabilityState, type Da
 export type CapabilityKind = "tool" | "skill" | "model" | "agent" | "connector" | "workflow";
 export type CostModel = "free" | "fixed" | "dynamic" | "unknown";
 export type TrustLevel = "verified" | "declared" | "unknown";
+/**
+ * معرفة التوفّر (قرار GEN-1 §1): KNOWN = التوفّر موثّق (كتالوج/دليل)؛ UNKNOWN = شرط أساسي للتنفيذ ناقص ⇒ DENY، لا موافقة.
+ * منفصلة عن الثقة (trust = مصدر الوصف) وعن سلّم القدرة (state = ما ثبت بالدليل).
+ */
+export type AvailabilityKnowledge = "known" | "unknown";
 
 export type Capability = {
   id: string;
@@ -24,6 +29,7 @@ export type Capability = {
   readOnly: boolean;
   version: string;
   trust: TrustLevel;
+  availability: AvailabilityKnowledge;
 };
 
 export type CapabilityStatus = {

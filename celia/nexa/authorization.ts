@@ -11,9 +11,13 @@
 import { NexaError, proposalHash, type Proposal } from "./protocol.ts";
 import type { PolicyDecision } from "./policy.ts";
 
+/** من أصدر المنح. قرار GEN-1 §3: السلطة للإنسان فقط — لا موافقة من AI/وكيل/مخطِّط/مزوّد. */
+export type GrantPrincipal = "human" | "agent" | "system";
+
 export type Grant = {
   id: string;
   grantedBy: string;
+  principal: GrantPrincipal;
   role: string;
   scope: { capability: string; operation: string | null; proposalHash: string | null };
   maxCostUsd: number;
@@ -24,6 +28,7 @@ export type Grant = {
 
 export type ApprovalStamp = {
   grantId: string;
+  principal: GrantPrincipal;
   proposalHash: string;
   approvedBy: string;
   role: string;
@@ -39,6 +44,7 @@ export type AuthorizationResult = {
 };
 
 export function grantMatches(grant: Grant, proposal: Proposal, now: string): { ok: boolean; why: string } {
+  if (grant.principal !== "human") return { ok: false, why: `grant ${grant.id}: principal ${grant.principal} cannot grant authority (human only)` };
   if (grant.scope.capability !== proposal.capability) return { ok: false, why: `grant ${grant.id}: capability mismatch` };
   if (grant.scope.operation !== null && grant.scope.operation !== proposal.operation) return { ok: false, why: `grant ${grant.id}: operation mismatch` };
   const hash = proposalHash(proposal);
@@ -46,6 +52,12 @@ export function grantMatches(grant: Grant, proposal: Proposal, now: string): { o
   if (grant.expiresAt <= now) return { ok: false, why: `grant ${grant.id}: expired` };
   if (grant.singleUse && grant.usedAt !== null) return { ok: false, why: `grant ${grant.id}: already consumed` };
   if (grant.maxCostUsd < proposal.maxCostUsd) return { ok: false, why: `grant ${grant.id}: cap ${grant.maxCostUsd} < proposal ${proposal.maxCostUsd}` };
+  if (proposal.maxCostUsd > 0) {
+    // قرار GEN-1 §3: أول تنفيذ مدفوع = منح بشري صريح، أحادي الاستعمال، مربوط بتجزئة الاقتراح والعملية وسقف التكلفة.
+    if (grant.scope.proposalHash === null) return { ok: false, why: `grant ${grant.id}: paid execution requires a grant bound to the proposal hash` };
+    if (grant.scope.operation === null) return { ok: false, why: `grant ${grant.id}: paid execution requires a grant bound to one operation` };
+    if (!grant.singleUse) return { ok: false, why: `grant ${grant.id}: paid execution requires a single-use grant` };
+  }
   return { ok: true, why: `grant ${grant.id}: matches` };
 }
 
@@ -68,7 +80,7 @@ export function authorize(proposal: Proposal, policy: PolicyDecision, grants: re
       return {
         authorized: true,
         basis: "grant",
-        stamp: { grantId: g.id, proposalHash: proposalHash(proposal), approvedBy: g.grantedBy, role: g.role, at: now },
+        stamp: { grantId: g.id, principal: g.principal, proposalHash: proposalHash(proposal), approvedBy: g.grantedBy, role: g.role, at: now },
         reasons,
       };
     }

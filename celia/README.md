@@ -1,7 +1,8 @@
 # Celia — نظام تشغيل الوكلاء (Agent OS) · NEXA طبقة الحوكمة وثقة التنفيذ
 
-> **الحالة الصادقة:** هذا المجلد = **GEN-0 Foundation + GEN-1 Real Execution Boundary** — نواة NEXA، بوابة تنفيذ قبلية،
-> حارس موارد fail-closed، رسم دليل بسلسلة تجزئة، عقد نتيجة، وأول قدرة (AIsa) تمرّ **عبر البوابة** بدليل CI حقيقي.
+> **الحالة الصادقة:** هذا المجلد = **GEN-0 Foundation + GEN-1 Real Execution Boundary + GEN-2 Agent Core** — نواة NEXA، بوابة تنفيذ قبلية،
+> حارس موارد fail-closed، رسم دليل بسلسلة تجزئة، عقد نتيجة، وكيل حتمي بآلة حالة مقيّدة (هدف → عقد → خطة → أفعال عبر البوابة → ملاحظة → تحقق → إعادة تخطيط)،
+> وأول قدرة (AIsa) تمرّ **عبر البوابة** بدليل CI حقيقي.
 > ليس «Celia 2027». ما لم يُذكر أدناه على أنه `EXISTS` فهو غير مبني. القاعدة §24 تنطبق على هذا الملف نفسه:
 > **CAN ≠ AVAILABLE ≠ AUTHORIZED ≠ EXECUTABLE ≠ EXECUTED ≠ VERIFIED.**
 >
@@ -39,12 +40,16 @@ celia/
 │   ├── evidence.ts            # Evidence Graph (§14) إلحاقي بسلسلة تجزئة + Replay (§15) + explain()
 │   ├── verification.ts        # Outcome Contract (§6): COMPLETED/PARTIAL/BLOCKED/NOT_VERIFIED/FAILED
 │   └── index.ts
+├── core/                      # EXISTS (GEN-2)
+│   ├── task/                  # نموذج المهمة: آلة الحالة (task-state) · الخطوة · نقاط التفتيش المسلسلة · النتيجة · المهمة
+│   └── agent/                 # الوكيل: السياق · الفهم (قوالب) · الخطة (ربط/توقعات) · المخطِّط · الملاحظة · التحقق · التعافي · إعادة التخطيط · حلقة القرار · الإعادة (GEN2_GATE)
 ├── adapters/
-│   └── aisa/                  # EXISTS — أول قدرة تمرّ عبر البوابة
+│   └── aisa/                  # EXISTS — أول قدرة تمرّ عبر البوابة (+ قوالب أهداف ووكيل GEN-2 فوقها)
 │       ├── adapter.ts         # النقل الخام (بعدّاد نداءات) + السياسة + المستخرجات + الدليل المنقّح
 │       ├── provider.ts        # GEN-1: المزوّد داخل الحدّ — 4 عمليات مجانية قرائية؛ paid use معطّل بنيويًا
 │       ├── pipeline.ts        # GEN-1: خط الأنابيب المحكوم — كل نداء = اقتراح إلى البوابة
 │       ├── bridge.ts          # حكم NEXA offline: سلسلة الدليل + الإيصالات + العقد + GEN1_GATE
+│       ├── goals.ts · agent.ts # GEN-2: قالب هدف «اكتشاف AIsa» + تشغيل الوكيل على AIsa (تركيب فقط)
 │       └── contract.readonly.json · README.md
 ├── apps/ core/ runtime/ mesh/ evolution/ observability/     # PLANNED — غير موجودة
 ├── nexa/{identity,acl,approvals}                            # PLANNED — غير موجودة (approvals جزئيًا داخل authorization.ts)
@@ -78,6 +83,49 @@ Proposal → CAPABILITY (resolver: قدرة معروفة؟ مزوّد معروف
 
 إثبات «البوابة قبلية» في الدليل: `transport_calls == boundary_calls == executed` و`ungated_calls = 0`،
 وكل إيصال مُنفَّذ يحمل تاريخ مراحله (POLICY وAUTHORIZATION وAPPROVAL قبل EXECUTION). المنح أحادي الاستعمال يُحرق عند عبور EXECUTION.
+
+## قرارات GEN-1 المحسومة (مثبتة في الكود والاختبارات)
+
+| القرار | التطبيق |
+|---|---|
+| §1 `availability=unknown` ⇒ **DENY** لا موافقة | `Capability.availability: "known" \| "unknown"` + قاعدة `availability` ⇒ `NEXA_E_AVAILABILITY_UNKNOWN`؛ محور مستقل عن `trust` |
+| §2 `DEFAULT_SPEND_CAP_USD = 0` | غير محدد ⇒ 0؛ غير صالح/سالب ⇒ `NEXA_E_COST_CAP_INVALID`؛ ديناميكي/مجهول ⇒ `NEXA_E_COST_UNKNOWN`؛ > السقف ⇒ `NEXA_E_COST_EXCEEDS_CAP`؛ أي مدفوع ⇒ `NEXA_A_PAID` (موافقة) |
+| §3 سلطة أول تنفيذ مدفوع = إنسان | `Grant.principal: "human"` فقط (agent/system مرفوضان)؛ للمدفوع: منح أحادي الاستعمال مربوط بـ proposalHash **و**operation **و**سقف تكلفة؛ حدّ التنفيذ يعيد فحص `stamp.principal` |
+
+الأثر على دليل AIsa: المرشحون المدفوعون الثلاثة كلهم `DENIED@POLICY` الآن (تكلفة > 0 + توفّر مجهول) — لا مسار موافقة لهم أصلًا.
+
+## الوكيل (GEN-2) — `core/agent` فوق `core/task`
+
+```text
+USER → UNDERSTAND (قالب استراتيجية) → OUTCOME CONTRACT → PLAN (تحليل القدرات من السجل، ترتيب، رفض)
+     → لكل خطوة: اقتراح ⇒ gateway.submit (= NEXA precheck + execution gate) → OBSERVE (إيصال) → VERIFY (توقّع تصريحي)
+     → VERIFIED ⇒ الخطوة التالية · FAILED ⇒ RECOVERING (إعادة عابرة أو إعادة تخطيط) · NOT_VERIFIED ⇒ REPLANNING
+     → بعد آخر خطوة: VERIFYING (عقد النتيجة يحكم) ⇒ COMPLETED | FAILED | BLOCKED
+```
+
+```text
+CREATED → UNDERSTANDING → PLANNING → READY → EXECUTING → OBSERVING → VERIFYING ─┬─ READY | COMPLETED
+                                                                                ├─ RECOVERING → EXECUTING | REPLANNING | FAILED
+                                                                                └─ REPLANNING → READY | BLOCKED | FAILED
+```
+
+- الجدول `TASK_TRANSITIONS` هو القانون: `COMPLETED` لا يُبلَغ إلا من `VERIFYING`؛ `PLANNING → COMPLETED` مستحيل بنيويًا.
+- كل انتقال = نقطة تفتيش مسلسلة بتجزئة (`prevHash/hash`) تحمل رأس رسم الدليل لحظتها؛ الإعادة offline تتحقق من الاثنين معًا.
+- الوكيل **≠ نموذج لغوي**: الفهم في GEN-2 = قوالب استراتيجية حتمية (`TemplateUnderstanding`) — هدف غير معروف ⇒ BLOCKED لا تخمين. Model Mesh لاحقًا يطبّق `Understanding`/`Planner` نفسيهما.
+- الوكيل لا يملك سلطة: لا مسار شبكي مباشر (`transport_calls == executed` يُقاس)، سقف الإنفاق 0، هدف يطلب أكثر ⇒ `GOAL_CONSTRAINT` ⇒ BLOCKED.
+- ما رفضته NEXA لا يُعاد كما هو؛ التغيير يأتي من إعادة التخطيط (مرشح آخر)، وكل مرشح جديد يمرّ بالبوابة من جديد.
+- الإنهاء مضمون: `maxAttempts` (20) · `maxReplans` (3) · `maxRetriesPerStep` (1).
+
+```text
+GEN2_GATE = agent_goal_verified ∧ outcome_contract_verified ∧ all_actions_gated ∧ replan_verified ∧ evidence_chain_valid ∧ no_paid_operation ∧ tests_pass
+            (يحسبها core/agent/replay.ts من التقرير المسلسل وحده — بلا ثقة بالوكيل؛ tests_pass = ci.yml)
+```
+
+الاختبارات الحاسمة (`tests/unit/celia-agent.test.ts`): خطوة 1 PASS → خطوة 2 FAIL → ملاحظة → إعادة تخطيط → بديل PASS → خطوة 3 PASS → COMPLETED؛
+أداة غير متاحة → إعادة تخطيط → البديل غير متاح → BLOCKED؛ تكلفة مجهولة → NEXA DENY → المزوّد لم يُنادَ قط؛ إضافة إلى الفهم/التعافي/الإنهاء/آلة الحالة/التلاعب بالنقاط/الإعادة.
+
+على AIsa الحقيقي (`adapters/aisa/agent.ts`): خطة من 4 خطوات؛ خطوة الاكتشاف تجرّب أولًا ما يدّعيه الكتالوج (بحث بلا مفتاح) فتفشل بـ401 كما في التشغيل الحقيقي،
+فيعيد الوكيل التخطيط إلى البحث بالمفتاح — إعادة تخطيط حقيقية على دليل حقيقي، ثم `get_details` بوسائط مربوطة من ملاحظة البحث، ثم لقطة الحساب المجانية.
 
 ## سلّم القدرة (§24) — من يرفع ماذا
 
@@ -135,7 +183,7 @@ GEN1_GATE = real_execution_pre_gate_verified AND paid_use_calls = 0 AND secret_e
 |---|---|---|
 | v0.1 GEN-0 Foundation | NEXA (protocol · capability · policy · authorization · cost · execution boundary · evidence · verification) | **EXISTS · TESTED · RUNTIME VERIFIED** |
 | v0.2 GEN-1 Execution Gate | ExecutionGateway · CapabilityResolver · AuthorizationGate · ApprovalGate · CostReservation · ProviderExecution · EvidenceReceipt · ResourceGuard | **EXISTS · TESTED · RUNTIME VERIFIED** (AIsa عبر البوابة في CI؛ `GEN1_GATE runtime=PASS`) |
-| v0.3 GEN-2 Agent Core | planner · context · decision loop · recovery | PLANNED — لا وكيل |
+| v0.3 GEN-2 Agent Core | intent · context · planner · plan · decision loop · observation · verification · recovery · replan · task/checkpoint/replay | **EXISTS · TESTED · RUNTIME VERIFIED** (وكيل على AIsa في CI؛ `GEN2_GATE runtime=PASS`) |
 | v0.4 GEN-3 Task Engine | مهام دائمة بحالات PLANNED…COMPLETED | PLANNED |
 | v0.5 GEN-4 Tool Runtime | FILES/TERMINAL/GIT/GITHUB/WEB/… كمزوّدين خلف البوابة | PLANNED — لا منفّذ حقيقي غير AIsa القرائي |
 | v0.6–v0.9 | Skills · Subagents · Workspace · Project Brain | PLANNED |
@@ -153,13 +201,17 @@ GEN1_GATE = real_execution_pre_gate_verified AND paid_use_calls = 0 AND secret_e
 | ResourceGuard | EXECUTED | يعمل في CI بحصص ذاتية (`aisa.requests`, `aisa.spend_usd`)؛ حصص Cloudflare/GitHub الحقيقية = PLANNED |
 | AIsa provider (4 عمليات مجانية) | VERIFIED | `GEN1_GATE runtime=PASS` |
 | AIsa paid `use` | NOT_PRESENT (عمدًا) | `PAID_USE_DISABLED` بنيويًا |
-| Human approval (grants) في CI | TESTED فقط | لا منح في CI؛ المسار مُختبَر بمنفّذ وهمي |
-| Agent Core · Task Engine · Skills · Subagents · Workspace · Project Brain · Browser/Computer · Model Mesh · UI · Cloud deploy | NOT_PRESENT / PLANNED | — |
+| Human approval (grants) في CI | TESTED فقط | لا منح في CI؛ المسار مُختبَر بمنفّذ وهمي (منح بشري مربوط بالكامل) |
+| Agent Core (GEN-2): آلة الحالة · حلقة القرار · إعادة التخطيط · نقاط التفتيش · الإعادة | VERIFIED | `tests/unit/celia-agent.test.ts` + تشغيل CI حقيقي (`GEN2_GATE`) |
+| Understanding بنموذج لغوي · Planner بنموذج | NOT_PRESENT (عمدًا) | GEN-2 حتمي بقوالب؛ Model Mesh = GEN-9 |
+| Task Engine دائم (تخزين، WAITING_APPROVAL، استئناف) | PLANNED (GEN-3) | نقاط التفتيش في الذاكرة/JSONL فقط |
+| Skills · Subagents · Workspace · Project Brain · Browser/Computer · Model Mesh · UI · Cloud deploy | NOT_PRESENT / PLANNED | — |
 
 ## ما لا يدّعيه هذا المجلد
 
 - لا منفّذ حقيقي غير مزوّد AIsa القرائي المجاني؛ ملفات/طرفية/متصفح/GitHub/`use` مدفوع = غير موجودة، و`DeniedExecutor` هو الافتراضي.
 - لا ذاكرة/Project Brain، لا Model Mesh، لا Skill Mesh، لا وكلاء متعددون، لا واجهة، لا نشر سحابي.
+- الوكيل في GEN-2 يفهم **قالبًا واحدًا** (اكتشاف AIsa) — الفهم قوالب حتمية لا فهم لغوي؛ الخطط والنقاط تُحفظ في الذاكرة/JSONL لا في مخزن دائم (GEN-3).
 - «zero charge delta» من مصدر المزوّد نفسه = عدم‑تناقض، لا إثبات محاسبي مستقل.
 - «pre_execution_gate_verified» إثبات **داخل العملية** (عدّاد النقل الخام مقابل تنفيذات البوابة + ترتيب المراحل في الإيصالات)؛
   ليس عزلًا على مستوى الشبكة/نظام التشغيل — ذلك يأتي مع Workspace/Device runtime.

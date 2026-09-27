@@ -148,7 +148,7 @@ export function assertExecutable(action: AuthorizedAction): void {
   if (action.proposal.risk !== "read" && action.authorization.basis !== "grant") {
     throw new NexaError("APPROVAL_REQUIRED", `execution boundary: ${action.proposal.risk} action without human grant`);
   }
-  if (action.proposal.maxCostUsd > 0 && action.authorization.basis !== "grant") throw new NexaError("APPROVAL_REQUIRED", "execution boundary: paid action without human grant");
+  if (action.proposal.maxCostUsd > 0 && (action.authorization.basis !== "grant" || action.authorization.stamp?.principal !== "human")) throw new NexaError("APPROVAL_REQUIRED", "execution boundary: paid action without human grant");
   if (action.proposal.maxCostUsd > 0 && !action.reservationId) throw new NexaError("NO_RESERVATION", "execution boundary: paid action without cost reservation");
 }
 

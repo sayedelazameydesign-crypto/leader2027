@@ -227,7 +227,7 @@ export function bridge(report: AdapterReport, contract: OutcomeContract, now: st
 
   // سلّم القدرة: CAN → AVAILABLE بدليل إيصال المصادقة (أو سطر AUTH إن غابت الإيصالات) — لا أبعد.
   const registry = new CapabilityRegistry();
-  registry.register({ id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "mcp-2026-07-28", trust: "declared" });
+  registry.register({ id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "mcp-2026-07-28", trust: "declared", availability: "known" });
   if (facts.mcp_auth_verified === true) {
     const authReceipt = receipts.find((r) => r.operation === "list_categories" && r.outcome === "EXECUTED");
     registry.raise("aisa", "AVAILABLE", authReceipt ? authReceipt.actionId : "evidence:auth", now);
