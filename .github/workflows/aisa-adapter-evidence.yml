@@ -1,0 +1,73 @@
+# AIsa — دليل runtime للمحوّل قراءة‑فقط (integrations/aisa/adapter.ts).
+#
+# خط الأنابيب: connect → authenticate → list/search → get_details → validate schema → enforce max_price_usd → evidence.
+# لا `use` مدفوع إطلاقًا؛ الاستثناء المُسمّى الوحيد `use(account)` (مجاني، قراءة‑فقط) للقطة محاسبية قبل/بعد.
+# السرّ: AISA_API_KEY من GitHub > Settings > Secrets > Actions (مفتاح CI مخصّص بسقف إنفاق منخفض) — لا يمرّ عبر أي محادثة.
+# القراءة من بيئة التطوير:  gh api repos/<owner>/<repo>/check-runs/<job_id>/annotations
+name: "AIsa adapter evidence (read-only)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "وصف المهمة بلغة طبيعية لـsearch"
+        required: false
+        default: "documentation page that teaches AI coding agents how to install and use AIsa API skills via the AIsa CLI"
+        type: string
+      max_price_usd:
+        description: "سقف السياسة بالدولار لقرار الاقتراح (لا تنفيذ على أي حال)"
+        required: false
+        default: "0.01"
+        type: string
+  push:
+    branches: [arena/01a0e068-leader2027]
+    paths:
+      - ".github/workflows/aisa-adapter-evidence.yml"
+      - "integrations/aisa/**"
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22   # ≥ 22.18: type stripping افتراضيًا — لا build ولا تبعيات
+
+      - name: "Secret presence (name only)"
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+        run: |
+          if [ -n "$AISA_API_KEY" ]; then echo "::notice title=secrets::AISA_API_KEY = present"; else echo "::notice title=secrets::AISA_API_KEY = absent"; fi
+
+      - name: "connect / authenticate / search / get_details / validate / price-cap / evidence"
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+          QUERY: ${{ inputs.query || 'documentation page that teaches AI coding agents how to install and use AIsa API skills via the AIsa CLI' }}
+          MAX_PRICE_USD: ${{ inputs.max_price_usd || '0.01' }}
+        run: |
+          node integrations/aisa/adapter.ts \
+            --query "$QUERY" --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
+            --out /tmp/aisa-adapter-evidence.txt --json /tmp/aisa-adapter-evidence.json
+
+      - name: "Job summary (redacted evidence)"
+        if: always()
+        run: |
+          {
+            echo "## AIsa adapter evidence (read-only) — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '```text'
+            cat /tmp/aisa-adapter-evidence.txt 2>/dev/null || echo "(no evidence file)"
+            echo '```'
+            echo '<details><summary>facts (JSON, redacted)</summary>'
+            echo
+            echo '```json'
+            cat /tmp/aisa-adapter-evidence.json 2>/dev/null || echo "{}"
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"

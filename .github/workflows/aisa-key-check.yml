@@ -11,6 +11,12 @@ name: "AIsa key check (read-only)"
 
 on:
   workflow_dispatch:
+    inputs:
+      print_fingerprint:
+        description: "اطبع بصمة SHA-256 للمفتاح (12 خانة) — لتحقق لمرة واحدة فقط؛ الافتراضي محجوب"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [arena/01a0e068-leader2027]
     paths:
@@ -41,6 +47,7 @@ jobs:
       - name: "KEY / REACH / REST / MCP (free calls only)"
         env:
           AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+          AISA_PRINT_FINGERPRINT: ${{ inputs.print_fingerprint && '1' || '0' }}
           L27_EVIDENCE_OUT: /tmp/aisa-key-check.txt
         run: node scripts/aisa-key-check.mjs
 

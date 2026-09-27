@@ -10,8 +10,9 @@
  *   MCP   : tools/call search (بلا مفتاح، مجاني) + tools/call use{operation_id:"account"} (بالمفتاح، مجاني)
  *
  * لا يُطبع المفتاح أبدًا ولا أي ترويسة Authorization ولا أي قيمة من ردّ الحساب — أرقام/أعلام/
- * أسماء حقول/معرّفات عمليات عامة فقط. بصمة المفتاح = أول 12 خانة من SHA-256 (غير قابلة للعكس)
- * لتطابقها محليًا:  printf %s "$AISA_API_KEY" | sha256sum | cut -c1-12
+ * أسماء حقول/معرّفات عمليات عامة فقط. بصمة المفتاح (أول 12 خانة من SHA-256) **محجوبة افتراضيًا** —
+ * المستودع عام والتعليقات/الملخصات أثر عام، والبصمة معرّف ارتباط ثابت. للتحقق لمرة واحدة:
+ * AISA_PRINT_FINGERPRINT=1، وقارن محليًا:  printf %s "$AISA_API_KEY" | sha256sum | cut -c1-12
  * كل الإخراج ASCII (تعليقات GitHub تُسقط غير ASCII).
  *
  * الخروج: 0 إذا المفتاح موجود وصالح (REST=200 أو MCP account مصادَق)؛ وإلا 1.
@@ -98,8 +99,11 @@ let rejected = false;
 if (!key) {
   say("KEY", "AISA_API_KEY=absent (add it as a GitHub Actions secret - a dedicated low-spend-cap key - never via chat)");
 } else {
-  const fp = createHash("sha256").update(key).digest("hex").slice(0, 12);
-  say("KEY", `AISA_API_KEY=present length=${key.length} prefix_ok=${key.startsWith("sk-aisa-") ? "yes" : "no"} fingerprint=sha256:${fp}`);
+  // البصمة معرّف ارتباط ثابت (correlation identifier) — تُطبع فقط عند طلب صريح لتحقق لمرة واحدة، لا في الأثر العام.
+  const fp = process.env.AISA_PRINT_FINGERPRINT === "1"
+    ? `sha256:${createHash("sha256").update(key).digest("hex").slice(0, 12)}`
+    : "withheld (set AISA_PRINT_FINGERPRINT=1 for a one-off check)";
+  say("KEY", `AISA_API_KEY=present length=${key.length} prefix_ok=${key.startsWith("sk-aisa-") ? "yes" : "no"} fingerprint=${fp}`);
 }
 
 // 1) REACH — بلا مفتاح
