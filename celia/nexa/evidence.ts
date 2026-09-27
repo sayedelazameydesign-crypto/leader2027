@@ -149,6 +149,14 @@ export class EvidenceGraph {
       .split("\n")
       .filter((l) => l.trim() !== "")
       .map((l) => JSON.parse(l) as Entry);
+    return EvidenceGraph.fromEntries(entries);
+  }
+
+  entriesSnapshot(): Entry[] {
+    return this.entries.map((e) => ({ ...e }));
+  }
+
+  static fromEntries(entries: readonly Entry[]): { graph: EvidenceGraph; replay: string[]; chain: { ok: boolean; brokenAt: number | null } } {
     const chain = EvidenceGraph.verifyEntries(entries);
     if (!chain.ok) throw new NexaError("CHAIN_BROKEN", `evidence chain broken at seq ${chain.brokenAt}`);
     const graph = new EvidenceGraph();

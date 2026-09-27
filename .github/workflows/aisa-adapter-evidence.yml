@@ -1,6 +1,6 @@
-# AIsa — دليل runtime للمحوّل قراءة‑فقط (celia/adapters/aisa/adapter.ts) + حكم NEXA (celia/adapters/aisa/bridge.ts).
+# AIsa — دليل runtime لخط الأنابيب المحكوم (celia/adapters/aisa/pipeline.ts: كل نداء عبر بوابة NEXA قبل الشبكة) + حكم NEXA (bridge.ts).
 #
-# خط الأنابيب: connect → authenticate → list/search → get_details → validate schema → enforce max_price_usd → evidence.
+# خط الأنابيب: connect → authenticate → search → get_details → validate → price-cap → (المرشحون يُقدَّمون للبوابة ⇒ DENIED) → evidence.
 # لا `use` مدفوع إطلاقًا؛ الاستثناء المُسمّى الوحيد `use(account)` (مجاني، قراءة‑فقط) للقطة محاسبية قبل/بعد.
 # السرّ: AISA_API_KEY من GitHub > Settings > Secrets > Actions (مفتاح CI مخصّص بسقف إنفاق منخفض) — لا يمرّ عبر أي محادثة.
 # القراءة من بيئة التطوير:  gh api repos/<owner>/<repo>/check-runs/<job_id>/annotations
@@ -51,18 +51,18 @@ jobs:
         run: |
           if [ -n "$AISA_API_KEY" ]; then echo "::notice title=secrets::AISA_API_KEY = present"; else echo "::notice title=secrets::AISA_API_KEY = absent"; fi
 
-      - name: "connect / authenticate / search / get_details / validate / price-cap / evidence"
+      - name: "NEXA gateway: connect / authenticate / search / get_details / validate / price-cap / evidence"
         env:
           AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
           QUERY: ${{ inputs.query || 'extract the readable text content of a public documentation web page given its URL' }}
           CATEGORY: ${{ inputs.category || 'search' }}
           MAX_PRICE_USD: ${{ inputs.max_price_usd || '0.01' }}
         run: |
-          node celia/adapters/aisa/adapter.ts \
+          node celia/adapters/aisa/pipeline.ts \
             --query "$QUERY" ${CATEGORY:+--category "$CATEGORY"} --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
             --out /tmp/aisa-adapter-evidence.txt --json /tmp/aisa-adapter-evidence.json
 
-      # NEXA (Celia GEN-0): يحكم على دليل المحوّل بعقد النتيجة — لا شبكة، لا سرّ. الخروج 0 فقط عند COMPLETED.
+      # NEXA bridge (Celia GEN-1): يستورد رسم دليل البوابة ويتحقق من سلسلته، يحكم بعقد النتيجة، ويحسب GEN1_GATE — لا شبكة، لا سرّ. الخروج 0 فقط عند COMPLETED.
       - name: "NEXA outcome contract + evidence graph"
         if: always()
         run: |
@@ -81,7 +81,7 @@ jobs:
             echo '```text'
             cat /tmp/aisa-adapter-evidence.txt 2>/dev/null || echo "(no evidence file)"
             echo '```'
-            echo "### NEXA verdict (Celia GEN-0)"
+            echo "### NEXA verdict (Celia GEN-1 gateway)"
             echo '```text'
             cat /tmp/aisa-nexa.txt 2>/dev/null || echo "(no NEXA output)"
             echo '```'

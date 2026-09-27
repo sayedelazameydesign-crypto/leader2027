@@ -13,3 +13,5 @@ export * from "./cost-guard.ts";
 export * from "./execution.ts";
 export * from "./evidence.ts";
 export * from "./verification.ts";
+export * from "./resource-guard.ts";
+export * from "./gateway.ts";

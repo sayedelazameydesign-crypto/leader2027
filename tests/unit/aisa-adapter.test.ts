@@ -11,12 +11,13 @@ import {
   extractDetails,
   normalizePrice,
   numericDelta,
-  runPipeline,
   sanitize,
   validateArgs,
   type OperationDetails,
   type Proposal,
 } from "@/celia/adapters/aisa/adapter";
+import { runPipeline } from "@/celia/adapters/aisa/pipeline";
+import { AISA_GOVERNED_OPERATIONS, candidateCapability, createAisaProvider } from "@/celia/adapters/aisa/provider";
 
 const FAKE_KEY = "sk-aisa-TEST-0123456789abcdef0123456789abcdef";
 
@@ -255,10 +256,39 @@ describe("AIsa read-only adapter — evidence hygiene", () => {
   });
 });
 
-describe("AIsa read-only adapter — full pipeline (mocked network)", () => {
+describe("AIsa governed adapter (GEN-1) — provider is the only network path", () => {
+  it("the provider knows exactly four free read-only operations and refuses paid use structurally, before any network call", async () => {
+    const seen: Seen[] = [];
+    const { boundary, counter } = createAisaProvider({ apiKey: FAKE_KEY, fetchImpl: mockFetch(seen) });
+    expect([...AISA_GOVERNED_OPERATIONS]).toEqual(["list_categories", "search", "get_details", "use:account"]);
+    const action = (operation: string) => ({
+      proposal: { id: "p", intentId: "i", capability: `aisa:${operation}`, operation, arguments: { url: "https://x" }, risk: "read" as const, dataClass: "PUBLIC" as const, maxCostUsd: 0, proposedBy: "t", at: "now" },
+      policy: { decision: "ADMIT" as const, findings: [] },
+      authorization: { authorized: true, basis: "policy" as const, stamp: null, reasons: [] },
+      reservationId: null,
+    });
+    await expect(boundary.execute(action("use:post_tavily_crawl"), () => "now")).rejects.toMatchObject({ code: "PAID_USE_DISABLED" });
+    await expect(boundary.execute(action("batch_use"), () => "now")).rejects.toMatchObject({ code: "TOOL_NOT_ALLOWED" });
+    expect(seen).toHaveLength(0);
+    expect(counter.calls).toBe(0);
+    const obs = await boundary.execute(action("use:account"), () => "now");
+    expect(obs.ok).toBe(true);
+    expect(counter.calls).toBe(1);
+    expect(boundary.calls).toBe(3); // every attempt counts as a boundary crossing, even refused ones
+    expect(seen[0]?.body.params).toMatchObject({ name: "use", arguments: { operation_id: "account" } });
+  });
+
+  it("candidateCapability maps get_details into NEXA terms (cost model, risk, trust) without inventing availability", () => {
+    const cap = candidateCapability({ operation_id: "x", read_only: true, side_effects: [], availability: "unknown", price: { usd: 0.24, currency: "USD" } });
+    expect(cap).toMatchObject({ id: "aisa:use:x", risk: "read", costModel: "fixed", fixedCostUsd: 0.24, readOnly: true, trust: "unknown" });
+    expect(candidateCapability({ operation_id: "y", read_only: false, availability: "ga", price: "dynamic" })).toMatchObject({ risk: "write", costModel: "dynamic", fixedCostUsd: null, trust: "declared" });
+  });
+});
+
+describe("AIsa governed pipeline — full run through the NEXA gateway (mocked network)", () => {
   const opts = { query: "find the docs page", category: null, limit: 2, maxPriceUsd: 0.01, args: null, autofill: true, accountSnapshot: true, out: null, json: null };
 
-  it("produces the evidence chain, never leaks the key, never issues a paid use", async () => {
+  it("every network call is gated first; evidence chain, no key leak, no paid use, candidates denied before the provider", async () => {
     const seen: Seen[] = [];
     const lines: string[] = [];
     const orig = console.log;
@@ -270,7 +300,7 @@ describe("AIsa read-only adapter — full pipeline (mocked network)", () => {
       console.log = orig;
     }
     expect(result.ok).toBe(true);
-    const text = result.evidence.lines.join("\n") + JSON.stringify(result.evidence.facts) + lines.join("\n");
+    const text = result.evidence.lines.join("\n") + JSON.stringify(result.evidence.facts) + lines.join("\n") + JSON.stringify(result.graph);
     expect(text).not.toContain(FAKE_KEY);
     expect(text).not.toContain("****cdef"); // no account values either
     expect(text).toMatch(/AISA_SEARCH_ANONYMOUS=CONTRADICTED_BY_RUNTIME/);
@@ -278,16 +308,32 @@ describe("AIsa read-only adapter — full pipeline (mocked network)", () => {
     expect(text).toMatch(/AISA_DISCOVERY=VERIFIED/);
     expect(text).toMatch(/AISA_GET_DETAILS=VERIFIED/);
     expect(text).toMatch(/AISA_PAID_USE=NOT_EXECUTED/);
-    expect(text).toMatch(/chosen=tavily\.extract decision=ADMIT_TO_AUTHORIZATION/); // fixed 0.002 <= 0.01, read-only, ga, urls autofilled
+    expect(text).toMatch(/AISA_EXECUTION_AUTHORITY=NEXA_GATEWAY_GEN1/);
+    expect(text).toMatch(/chosen=tavily\.extract decision=ADMIT_TO_AUTHORIZATION/); // adapter policy: fixed 0.002 <= 0.01, read-only, ga, urls autofilled
     expect(text).toMatch(/autofilled=\[urls\]/);
-    expect(text).toMatch(/POLICY: policy_max_usd=0\.01 tavily\.extract=ADMIT web\.search=DENY\(price\)/); // query autofilled => schema passes; dynamic price denies
+    expect(text).toMatch(/POLICY: policy_max_usd=0\.01 tavily\.extract=ADMIT web\.search=DENY\(price\)/);
     expect(lines.filter((l) => l.startsWith("::notice")).length).toBeLessThanOrEqual(10); // GitHub annotation budget per step
-    // the server counts our own free `account` calls: today_calls moves by +1, today_usd does not — printed as path+delta only
     expect(text).toMatch(/billing_related_changed=1 \[data\.usage\.today_calls:\+1\]/);
     expect(text).not.toMatch(/today_usd/);
     const useCalls = seen.filter((s) => (s.body.params as { name: string }).name === "use");
     expect(useCalls.every((s) => (s.body.params as { arguments: { operation_id: string } }).arguments.operation_id === "account")).toBe(true);
     expect(useCalls).toHaveLength(2);
+
+    // GEN-1: the gateway decided before every network call — counters and receipts agree
+    const gw = result.evidence.facts.gateway as { submitted: number; executed: number; verified: number; transport_calls: number; boundary_calls: number; ungated_calls: number; denied: Record<string, number>; receipts: Array<{ operation: string; outcome: string; deniedAt: string | null; policy: string | null; stages: string[] }> };
+    expect(seen).toHaveLength(gw.executed);
+    expect(gw).toMatchObject({ submitted: 8, executed: 6, verified: 5, transport_calls: 6, boundary_calls: 6, ungated_calls: 0, denied: { POLICY: 1, APPROVAL: 1 } });
+    // tavily.extract: adapter admitted it (ADMIT_TO_AUTHORIZATION) but NEXA still requires a human grant before any paid use — none exists
+    const extract = gw.receipts.find((r) => r.operation === "use:tavily.extract");
+    expect(extract).toMatchObject({ outcome: "DENIED", deniedAt: "APPROVAL", policy: "REQUIRE_APPROVAL" });
+    expect(gw.receipts.find((r) => r.operation === "use:web.search")).toMatchObject({ outcome: "DENIED", deniedAt: "POLICY", policy: "DENY" }); // dynamic price: no upper bound
+    for (const r of gw.receipts.filter((x) => x.outcome === "EXECUTED")) {
+      expect(r.stages.indexOf("POLICY")).toBeLessThan(r.stages.indexOf("EXECUTION"));
+      expect(r.stages.indexOf("APPROVAL")).toBeLessThan(r.stages.indexOf("EXECUTION"));
+    }
+    expect(text).toMatch(/GATEWAY: submitted=8 executed=6 verified=5 denied=POLICY:1,APPROVAL:1 boundary_calls=6 transport_calls=6 ungated_calls=0 pre_execution_gate=VERIFIED/);
+    expect(result.graph.length).toBeGreaterThan(50);
+    expect(result.receipts.filter((r) => r.outcome === "EXECUTED").every((r) => r.observation?.mode === "real")).toBe(true);
   });
 
   it("without a key: anonymous probe only, ok=false, gate says ABSENT", async () => {
@@ -302,6 +348,7 @@ describe("AIsa read-only adapter — full pipeline (mocked network)", () => {
     }
     expect(result.ok).toBe(false);
     expect(result.evidence.lines.join("\n")).toMatch(/AISA_SECRET_PRESENT=ABSENT/);
-    expect(seen).toHaveLength(1); // only the anonymous search probe
+    expect(seen).toHaveLength(1); // only the anonymous search probe — gated too
+    expect(result.evidence.lines.join("\n")).toMatch(/GATEWAY: submitted=1 executed=1 verified=0 denied=0 boundary_calls=1 transport_calls=1 ungated_calls=0 pre_execution_gate=VERIFIED/);
   });
 });

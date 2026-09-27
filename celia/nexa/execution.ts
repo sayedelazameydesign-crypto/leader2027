@@ -31,6 +31,8 @@ export type Observation = {
   sideEffects: string[];
   costUsd: number;
   artifacts: string[];
+  /** الناتج الخام للمستدعي (لا يدخل رسم الدليل — الدليل يحمل الملخص المنقّح فقط). */
+  result?: unknown;
 };
 
 export interface ExecutionBoundary {
@@ -90,6 +92,55 @@ export class SimulationExecutor implements ExecutionBoundary {
   }
 }
 
+/** ما يعيده مزوّد حقيقي من داخل الحدّ: حالة، ملخص منقّح، تكلفة ملاحَظة، آثار جانبية، والناتج الخام للمستدعي. */
+export type ProviderResult = {
+  ok: boolean;
+  status: number | null;
+  summary: string;
+  costUsd: number;
+  sideEffects: string[];
+  artifacts?: string[];
+  result?: unknown;
+};
+
+export type ProviderCall = (operation: string, args: Record<string, unknown>, ctx: { proposalId: string; capability: string }) => Promise<ProviderResult>;
+
+/**
+ * منفّذ مزوّد حقيقي (GEN-1): الطريق الوحيد من البوابة إلى الشبكة. لا يُستدعى إلا من `runAction` بعد اجتياز
+ * كل البوابات؛ يعدّ نداءاته (`calls`) ليُقارَن العدد بعدّاد النقل الخام — فأي نداء خارج البوابة يظهر كفارق.
+ */
+export class ProviderExecution implements ExecutionBoundary {
+  readonly id: string;
+  readonly mode = "real" as const;
+  private readonly call: ProviderCall;
+  private count = 0;
+  constructor(id: string, call: ProviderCall) {
+    this.id = id;
+    this.call = call;
+  }
+  get calls(): number {
+    return this.count;
+  }
+  async execute(action: AuthorizedAction, now: () => string): Promise<Observation> {
+    const startedAt = now();
+    this.count++;
+    const r = await this.call(action.proposal.operation, action.proposal.arguments, { proposalId: action.proposal.id, capability: action.proposal.capability });
+    return {
+      proposalId: action.proposal.id,
+      executor: this.id,
+      mode: "real",
+      startedAt,
+      endedAt: now(),
+      ok: r.ok,
+      summary: r.summary,
+      sideEffects: r.sideEffects,
+      costUsd: r.costUsd,
+      artifacts: r.artifacts ?? [],
+      result: r.result,
+    };
+  }
+}
+
 /** الحدّ نفسه: الفحوص التي لا يتجاوزها أي منفّذ. */
 export function assertExecutable(action: AuthorizedAction): void {
   if (action.policy.decision === "DENY") throw new NexaError("POLICY_DENIED", "execution boundary: policy denied");
@@ -97,6 +148,7 @@ export function assertExecutable(action: AuthorizedAction): void {
   if (action.proposal.risk !== "read" && action.authorization.basis !== "grant") {
     throw new NexaError("APPROVAL_REQUIRED", `execution boundary: ${action.proposal.risk} action without human grant`);
   }
+  if (action.proposal.maxCostUsd > 0 && action.authorization.basis !== "grant") throw new NexaError("APPROVAL_REQUIRED", "execution boundary: paid action without human grant");
   if (action.proposal.maxCostUsd > 0 && !action.reservationId) throw new NexaError("NO_RESERVATION", "execution boundary: paid action without cost reservation");
 }
 

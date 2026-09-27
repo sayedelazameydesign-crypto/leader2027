@@ -1,61 +1,78 @@
 /**
- * Celia · adapters/aisa · **جسر الدليل** (Evidence Bridge) — الاستعمال الأول لـNEXA على دليل حقيقي.
+ * Celia · adapters/aisa · **جسر الدليل** (Evidence Bridge) — حكم NEXA على مخرجات خط الأنابيب المحكوم.
  *
- * يقرأ مخرجات المحوّل (`adapter.ts --json`) بعد تشغيله في GitHub Actions، ولا يتصل بأي شبكة:
- *   1. يشتقّ حقائق (true/false/"unknown") من `facts.gate` وسطور الدليل — لا يخترع حقيقة غائبة.
- *   2. يبني رسم دليل (Evidence Graph) إلحاقيًا بسلسلة تجزئة: مهمة → أفعال المحوّل → أدلتها → تحقق.
- *   3. يرفع سلّم قدرة `aisa` بدليل: CAN → AVAILABLE (مصادقة MCP ثبتت). لا يتجاوز AVAILABLE أبدًا.
- *   4. يمرّر اقتراحات المحوّل الحقيقية على سياسة NEXA (فحص متقاطع) ويثبت أن لا شيء منها مفوَّض.
- *   5. يحكم بعقد النتيجة `contract.readonly.json` ⇒ COMPLETED / PARTIAL / BLOCKED / NOT_VERIFIED / FAILED.
+ * يقرأ JSON خط الأنابيب (`pipeline.ts --json`) بعد تشغيله في GitHub Actions، ولا يتصل بأي شبكة:
+ *   1. يستورد رسم الدليل الذي أنتجته البوابة **أثناء** التنفيذ ويتحقق من سلسلة تجزئته (تلاعب ⇒ FAILED).
+ *   2. يشتقّ حقائق (true/false/"unknown") من `facts.gate` و`facts.gateway` وسطور الدليل — لا يخترع حقيقة غائبة.
+ *   3. يثبت البوابة القبلية: كل نداء شبكي مرّ بالبوابة (transport_calls == executed، ungated_calls == 0)
+ *      وكل تنفيذ سبقته مراحل POLICY → AUTHORIZATION → APPROVAL في إيصاله.
+ *   4. يرفع سلّم قدرة `aisa` بدليل الإيصال: CAN → AVAILABLE. لا يتجاوز AVAILABLE أبدًا هنا.
+ *   5. يحكم بعقد النتيجة `contract.readonly.json` ⇒ COMPLETED / PARTIAL / BLOCKED / NOT_VERIFIED / FAILED،
+ *      ويحسب الجزء الزمني من GEN1_GATE (tests_pass = CI).
  *
- * GEN-0: NEXA هنا يتحقق **بعد** التنفيذ (المحوّل نفّذ نداءات القراءة بمنفّذه الخاص). في GEN-1 يمرّ المحوّل
- * عبر حدّ التنفيذ قبل أي نداء. لا يُحمِّل هذا الملف `adapter.ts` — الدليل هو الوسيط الوحيد.
+ * تقارير بلا `facts.gateway` (شكل GEN-0) تُقبل: حقائق البوابة تصبح "unknown" ⇒ NOT_VERIFIED، لا ادّعاء.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ACTION_STAGES,
   CapabilityRegistry,
   EvidenceGraph,
-  authorize,
   evaluateOutcome,
-  evaluatePolicy,
   formatVerdict,
   parseContract,
-  proposalHash,
-  type Capability,
+  stageRank,
   type CapabilityState,
+  type Entry,
   type Fact,
   type Facts,
   type OutcomeContract,
   type OutcomeVerdict,
-  type Proposal,
 } from "../../nexa/index.ts";
 
-export type AdapterReport = { generated_at?: string; facts: Record<string, unknown>; lines: string[] };
+export type AdapterReport = { generated_at?: string; facts: Record<string, unknown>; lines: string[]; graph?: Entry[] };
+
+export type ReceiptView = {
+  actionId: string;
+  operation: string;
+  outcome: string;
+  deniedAt: string | null;
+  stage: string;
+  ladder: string;
+  registryState: string | null;
+  policy: string | null;
+  basis: string | null;
+  reason: string | null;
+  stages: string[];
+};
 
 export type BridgeResult = {
   facts: Facts;
   details: Record<string, string>;
   verdict: OutcomeVerdict;
+  gen1: { runtime: "PASS" | "FAIL" | "NOT_VERIFIED"; parts: Record<string, string> };
   capability: { id: string; state: CapabilityState; evidence: string[] };
-  policyCrossCheck: Array<{ operation: string; adapter: string; nexa: string; authorized: boolean; findings: string[] }>;
+  receipts: ReceiptView[];
   graph: EvidenceGraph;
+  runtimeChain: { present: boolean; ok: boolean; entries: number; head: string | null };
   summary: string[];
 };
 
 const SECRET_PATTERN = /sk-aisa-[A-Za-z0-9_-]{8,}/;
 const MONETARY_PATH = /usd|balance|credit|wallet|spend|spent|cost|charge|amount|price/i;
+const TASK_ID = "task:aisa-readonly-discovery";
 
 const asRecord = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 export function parseAdapterReport(value: unknown): AdapterReport {
   const r = asRecord(value);
   if (!r || !Array.isArray(r.lines) || !r.lines.every((l) => typeof l === "string")) throw new Error("adapter report must have string[] lines");
-  return { generated_at: typeof r.generated_at === "string" ? r.generated_at : undefined, facts: asRecord(r.facts) ?? {}, lines: r.lines as string[] };
+  const graph = Array.isArray(r.graph) ? (r.graph as Entry[]) : undefined;
+  return { generated_at: typeof r.generated_at === "string" ? r.generated_at : undefined, facts: asRecord(r.facts) ?? {}, lines: r.lines as string[], graph };
 }
 
-/** قيم البوابة: من `facts.gate` إن وُجد، وإلا من آخر سطر `GATE:` (المحوّل يطبعه حتى عند الخروج المبكر). */
+/** قيم البوابة: من `facts.gate` إن وُجد، وإلا من آخر سطر `GATE:`. */
 export function gateValues(report: AdapterReport): Record<string, string> {
   const fromFacts = asRecord(report.facts.gate);
   if (fromFacts) return Object.fromEntries(Object.entries(fromFacts).map(([k, v]) => [k, String(v)]));
@@ -69,18 +86,50 @@ export function gateValues(report: AdapterReport): Record<string, string> {
   return out;
 }
 
-const lineOf = (report: AdapterReport, section: string): string | null => report.lines.find((l) => l.startsWith(`${section}: `)) ?? null;
 const lastLineOf = (report: AdapterReport, section: string): string | null => [...report.lines].reverse().find((l) => l.startsWith(`${section}: `)) ?? null;
 
 function verifiedFact(v: string | undefined): Fact {
   if (v === undefined || v === "NOT_VERIFIED" || v === "NOT_TESTED") return "unknown";
   if (v === "VERIFIED") return true;
-  if (v === "REJECTED" || /^HTTP_\d+/.test(v)) return false;
-  return "unknown"; // NETWORK_ERROR وغيرها: لا يثبت ولا ينفي
+  if (v === "REJECTED" || /^HTTP_\d+/.test(v) || /^GATEWAY_/.test(v)) return false;
+  return "unknown";
+}
+
+export function receiptsOf(report: AdapterReport): ReceiptView[] {
+  const gw = asRecord(report.facts.gateway);
+  const list = Array.isArray(gw?.receipts) ? gw!.receipts : [];
+  return list
+    .map(asRecord)
+    .filter((r): r is Record<string, unknown> => r !== null && typeof r.operation === "string")
+    .map((r) => ({
+      actionId: String(r.actionId ?? ""),
+      operation: String(r.operation),
+      outcome: String(r.outcome ?? ""),
+      deniedAt: r.deniedAt === null || r.deniedAt === undefined ? null : String(r.deniedAt),
+      stage: String(r.stage ?? ""),
+      ladder: String(r.ladder ?? ""),
+      registryState: r.registryState === null || r.registryState === undefined ? null : String(r.registryState),
+      policy: r.policy === null || r.policy === undefined ? null : String(r.policy),
+      basis: r.basis === null || r.basis === undefined ? null : String(r.basis),
+      reason: r.reason === null || r.reason === undefined ? null : String(r.reason),
+      stages: Array.isArray(r.stages) ? r.stages.map(String) : [],
+    }));
+}
+
+/** إيصال مُنفَّذ سليم: مراحله بالترتيب الصارم، وPOLICY وAUTHORIZATION وAPPROVAL كلها قبل EXECUTION. */
+export function receiptGatedBeforeExecution(r: ReceiptView): boolean {
+  const idx = (s: string): number => (ACTION_STAGES as readonly string[]).indexOf(s);
+  const ranks = r.stages.map(idx);
+  if (ranks.some((x) => x < 0)) return false;
+  for (let i = 1; i < ranks.length; i++) if (ranks[i]! < ranks[i - 1]!) return false;
+  const first = (s: string): number => r.stages.indexOf(s);
+  const exec = first("EXECUTION");
+  if (exec < 0) return false;
+  return ["POLICY", "AUTHORIZATION", "APPROVAL"].every((s) => first(s) >= 0 && first(s) < exec) && stageRank(r.stage as (typeof ACTION_STAGES)[number]) >= stageRank("OBSERVATION");
 }
 
 /** اشتقاق الحقائق — كل حقيقة لها مصدر واحد محدد؛ غياب المصدر ⇒ "unknown". */
-export function deriveFacts(report: AdapterReport): { facts: Facts; details: Record<string, string> } {
+export function deriveFacts(report: AdapterReport, runtimeChain: { present: boolean; ok: boolean }): { facts: Facts; details: Record<string, string> } {
   const gate = gateValues(report);
   const facts: Facts = {};
   const details: Record<string, string> = {};
@@ -91,21 +140,24 @@ export function deriveFacts(report: AdapterReport): { facts: Facts; details: Rec
   facts.get_details_verified = verifiedFact(gate.AISA_GET_DETAILS);
   details.anonymous_search = gate.AISA_SEARCH_ANONYMOUS ?? "n/a";
   details.price_cap = gate.AISA_PRICE_CAP ?? "n/a";
+  details.execution_authority = gate.AISA_EXECUTION_AUTHORITY ?? "n/a";
 
-  // USE: paid_use_calls=N free_use_calls=[a,b]
+  // USE: paid_use_calls=N free_use_calls=[a,b] — مع إيصالات البوابة كمصدر ثانٍ
   const use = lastLineOf(report, "USE");
   const paid = use?.match(/paid_use_calls=(\d+)/);
   const free = use?.match(/free_use_calls=\[([^\]]*)\]/);
-  if (gate.AISA_PAID_USE !== undefined && gate.AISA_PAID_USE !== "NOT_EXECUTED") facts.paid_use = true;
+  const receipts = receiptsOf(report);
+  const paidReceipts = receipts.filter((r) => r.operation.startsWith("use:") && r.operation !== "use:account" && r.outcome === "EXECUTED");
+  if ((gate.AISA_PAID_USE !== undefined && gate.AISA_PAID_USE !== "NOT_EXECUTED") || paidReceipts.length > 0) facts.paid_use = true;
   else if (paid) facts.paid_use = Number(paid[1]) > 0;
   else facts.paid_use = "unknown";
   if (free) {
-    const calls = free[1].split(",").map((s) => s.trim()).filter(Boolean);
+    const calls = free[1]!.split(",").map((s) => s.trim()).filter(Boolean);
     facts.use_restricted_to_account = calls.every((c) => c === "account");
     details.free_use_calls = String(calls.length);
   } else facts.use_restricted_to_account = "unknown";
 
-  // ACCOUNT: فرق محاسبي قبل/بعد — المسارات النقدية فقط تُعدّ «رسمًا»؛ عدّادات النداءات لا.
+  // ACCOUNT: فرق محاسبي — المسارات النقدية فقط تُعدّ «رسمًا»؛ عدّادات النداءات لا.
   const delta = asRecord(report.facts.account_delta);
   const changed = Array.isArray(delta?.changed) ? (delta!.changed as Array<{ path?: unknown; delta?: unknown }>) : null;
   const account = lastLineOf(report, "ACCOUNT");
@@ -114,142 +166,103 @@ export function deriveFacts(report: AdapterReport): { facts: Facts; details: Rec
     facts.zero_charge_delta = monetary.length === 0;
     details.account_changed_paths = String(changed.length);
     details.account_monetary_changed = String(monetary.length);
-  } else if (account && /billing_related_changed=0\b/.test(account)) {
-    facts.zero_charge_delta = true;
-  } else facts.zero_charge_delta = "unknown";
+  } else if (account && /billing_related_changed=0\b/.test(account)) facts.zero_charge_delta = true;
+  else facts.zero_charge_delta = "unknown";
+
+  // GATEWAY (GEN-1): البوابة القبلية — عدّادات + ترتيب المراحل في كل إيصال مُنفَّذ
+  const gw = asRecord(report.facts.gateway);
+  if (gw) {
+    const executed = Number(gw.executed);
+    const transport = Number(gw.transport_calls);
+    const boundary = Number(gw.boundary_calls);
+    const ungated = Number(gw.ungated_calls);
+    const executedReceipts = receipts.filter((r) => r.outcome === "EXECUTED");
+    const ordered = executedReceipts.every(receiptGatedBeforeExecution);
+    const consistent = Number.isFinite(executed) && executed === transport && executed === boundary && ungated === 0 && executedReceipts.length === executed;
+    facts.pre_execution_gate_verified = consistent && ordered && executed > 0;
+    details.gateway = `submitted=${String(gw.submitted)} executed=${executed} transport_calls=${transport} ungated_calls=${ungated} ordered_receipts=${ordered ? "yes" : "no"}`;
+    const denied = asRecord(gw.denied);
+    details.gateway_denied = denied ? Object.entries(denied).filter(([, n]) => Number(n) > 0).map(([k, n]) => `${k}:${String(n)}`).join(",") || "0" : "n/a";
+  } else facts.pre_execution_gate_verified = "unknown";
+
+  // رسم الدليل الزمني: سلسلة سليمة = false للتلاعب؛ غائب = مجهول
+  facts.runtime_evidence_tampered = runtimeChain.present ? !runtimeChain.ok : "unknown";
 
   // SECRET: أي سطر أو حقيقة تحمل مفتاحًا حقيقيًا ⇒ تسريب (المحوّل ينقّح؛ الجسر يتأكد).
-  const corpus = report.lines.join("\n") + "\n" + JSON.stringify(report.facts);
+  const corpus = report.lines.join("\n") + "\n" + JSON.stringify(report.facts) + "\n" + JSON.stringify(report.graph ?? []);
   facts.secret_exposure = SECRET_PATTERN.test(corpus.replace(/sk-aisa-\*{2,}/g, ""));
 
   return { facts, details };
 }
 
-type AdapterProposal = {
-  proposal: { operation_id: string; arguments: Record<string, unknown>; max_price_usd: number };
-  decision: { decision: string; reasons?: string[]; checks?: { price?: { kind?: string; usd?: number | null }; read_only?: boolean | null; side_effects?: string; availability?: string } };
-};
-
-function adapterProposals(report: AdapterReport): AdapterProposal[] {
-  const list = report.facts.proposals;
-  if (!Array.isArray(list)) return [];
-  return list.filter((p): p is AdapterProposal => {
-    const r = asRecord(p);
-    const pr = asRecord(r?.proposal);
-    return Boolean(pr && typeof pr.operation_id === "string" && asRecord(r?.decision));
-  });
-}
-
-/** فحص متقاطع: كل اقتراح حقيقي من المحوّل يمرّ على سياسة NEXA — والنتيجة الملزمة: لا تفويض بلا منح. */
-export function crossCheckProposals(report: AdapterReport, registry: CapabilityRegistry, now: string, capUsd: number): BridgeResult["policyCrossCheck"] {
-  return adapterProposals(report).map((p, i) => {
-    const checks = p.decision.checks ?? {};
-    const kind = checks.price?.kind;
-    const costModel: Capability["costModel"] = kind === "free" || kind === "fixed" || kind === "dynamic" ? kind : "unknown";
-    const readOnly = checks.read_only === true && checks.side_effects === "none";
-    const id = `aisa:${p.proposal.operation_id}`;
-    if (!registry.has(id)) {
-      registry.register({
-        id,
-        kind: "tool",
-        provider: "aisa.one",
-        risk: readOnly ? "read" : "write",
-        costModel,
-        fixedCostUsd: costModel === "fixed" && typeof checks.price?.usd === "number" ? checks.price.usd : null,
-        dataClearance: "INTERNAL",
-        readOnly,
-        version: "get_details",
-        trust: checks.availability === "ok" ? "declared" : "unknown",
-      });
-    }
-    const capability = registry.get(id).capability;
-    const proposal: Proposal = {
-      id: `aisa-proposal-${i + 1}`,
-      intentId: "aisa-readonly-discovery",
-      capability: id,
-      operation: p.proposal.operation_id,
-      arguments: p.proposal.arguments ?? {},
-      risk: readOnly ? "read" : "write",
-      dataClass: "PUBLIC",
-      maxCostUsd: Math.min(capUsd, Number(p.proposal.max_price_usd) || 0),
-      proposedBy: "adapter",
-      at: now,
-    };
-    const policy = evaluatePolicy({ capability, proposal, budgetRemainingUsd: capUsd, mode: "CLOUD", simulated: false });
-    const auth = authorize(proposal, policy, [], now);
-    return { operation: p.proposal.operation_id, adapter: p.decision.decision, nexa: policy.decision, authorized: auth.authorized, findings: policy.findings.map((f) => `${f.rule}: ${f.reason}`) };
-  });
+function importRuntimeGraph(report: AdapterReport): { graph: EvidenceGraph; chain: BridgeResult["runtimeChain"] } {
+  if (!report.graph || report.graph.length === 0) {
+    const graph = new EvidenceGraph();
+    return { graph, chain: { present: false, ok: false, entries: 0, head: null } };
+  }
+  const check = EvidenceGraph.verifyEntries(report.graph);
+  if (!check.ok) {
+    return { graph: new EvidenceGraph(), chain: { present: true, ok: false, entries: report.graph.length, head: null } };
+  }
+  const { graph } = EvidenceGraph.fromEntries(report.graph);
+  return { graph, chain: { present: true, ok: true, entries: report.graph.length, head: graph.stats().head } };
 }
 
 export function bridge(report: AdapterReport, contract: OutcomeContract, now: string = new Date().toISOString()): BridgeResult {
-  const { facts, details } = deriveFacts(report);
+  const { graph, chain } = importRuntimeGraph(report);
+  const { facts, details } = deriveFacts(report, chain);
   const verdict = evaluateOutcome(contract, facts);
-  const capUsd = Number(details.price_cap.match(/policy_max_usd=([0-9.]+)/)?.[1] ?? 0);
+  const receipts = receiptsOf(report);
 
-  const registry = new CapabilityRegistry();
-  registry.register({ id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "mcp-2026-07-28", trust: "declared" });
-
-  const graph = new EvidenceGraph();
-  const taskId = "task:aisa-readonly-discovery";
-  graph.task(taskId, now, { goal: contract.goal, source: "celia/adapters/aisa/adapter.ts --json", generated_at: report.generated_at ?? null });
-
-  // أقسام دليل المحوّل: ما كان نداءً شبكيًا يُقيَّم بسياسة NEXA بعد الفعل (post-hoc) ويُسجَّل أساس تفويضه.
-  const sections: Array<{ section: string; reason: string; operation: string | null }> = [
-    { section: "KEY", reason: "secret presence (never the value)", operation: null },
-    { section: "ANON", reason: "documented free access probed without key", operation: "search" },
-    { section: "AUTH", reason: "MCP list_categories with Bearer", operation: "list_categories" },
-    { section: "SEARCH", reason: "operation discovery", operation: "search" },
-    { section: "DETAILS", reason: "get_details schema/price/availability", operation: "get_details" },
-    { section: "POLICY", reason: "adapter policy per candidate (local computation)", operation: null },
-    { section: "PROPOSAL", reason: "chosen proposal (proposal only; never executed)", operation: null },
-    { section: "ACCOUNT", reason: "free account snapshot before/after", operation: "use:account" },
-    { section: "USE", reason: "use() accounting (local computation)", operation: null },
-  ];
-  const aisaCapability = registry.get("aisa").capability;
-  const evidenceIds: Record<string, string> = {};
-  for (const { section, reason, operation } of sections) {
-    const line = lineOf(report, section);
-    if (!line) continue;
-    const key = section.toLowerCase();
-    const actionId = `action:${key}`;
-    graph.action(taskId, actionId, now, { section, reason, operation, executor: operation ? "adapter transport (GEN-0: executed before NEXA existed in the loop)" : "local computation", risk: "read" });
-    const evId = `evidence:${key}`;
-    graph.evidence(actionId, evId, now, { line, lines: report.lines.filter((l) => l.startsWith(`${section}: `)).length });
-    evidenceIds[section] = evId;
-    if (!operation) continue;
-    const proposal: Proposal = { id: `aisa-${key}`, intentId: taskId, capability: "aisa", operation, arguments: {}, risk: "read", dataClass: "PUBLIC", maxCostUsd: 0, proposedBy: "adapter", at: now };
-    const policy = evaluatePolicy({ capability: aisaCapability, proposal, budgetRemainingUsd: capUsd, mode: "CLOUD", simulated: false });
-    const auth = authorize(proposal, policy, [], now);
-    graph.authorization(actionId, `authorization:${key}`, now, { timing: "post-hoc", policy: policy.decision, basis: auth.basis, authorized: auth.authorized, note: auth.reasons[0] ?? null });
+  // الرسم: نكمل سلسلة الـruntime نفسها (أو نبدأ رسمًا جديدًا إن غابت/كُسرت — ويُذكر ذلك صراحةً)
+  if (!graph.getNode(TASK_ID)) graph.task(TASK_ID, now, { goal: contract.goal, source: "celia/adapters/aisa/pipeline.ts --json", runtimeGraph: chain.present ? (chain.ok ? "imported" : "REJECTED: chain broken") : "absent", generated_at: report.generated_at ?? null });
+  const sections = ["KEY", "ANON", "AUTH", "SEARCH", "DETAILS", "POLICY", "PROPOSAL", "GATEWAY_PROPOSALS", "ACCOUNT", "USE", "GATEWAY"];
+  graph.action(TASK_ID, "action:adapter-evidence", now, { reason: "redacted evidence lines emitted by the governed pipeline", executor: "bridge (offline)", risk: "read" });
+  for (const section of sections) {
+    const line = lastLineOf(report, section);
+    if (line) graph.evidence("action:adapter-evidence", `evidence:${section.toLowerCase()}`, now, { line });
   }
   const gate = gateValues(report);
-  if (Object.keys(gate).length) {
-    graph.action(taskId, "action:gate", now, { section: "GATE", reason: "adapter gate vocabulary (AISA_*)", operation: null, executor: "local computation", risk: "read" });
-    graph.evidence("action:gate", "evidence:gate", now, { gate });
-  }
+  if (Object.keys(gate).length) graph.evidence("action:adapter-evidence", "evidence:gate", now, { gate });
 
-  // سلّم القدرة: CAN → AVAILABLE بدليل المصادقة فقط.
-  if (facts.mcp_auth_verified === true && evidenceIds.AUTH) registry.raise("aisa", "AVAILABLE", evidenceIds.AUTH, now);
+  // سلّم القدرة: CAN → AVAILABLE بدليل إيصال المصادقة (أو سطر AUTH إن غابت الإيصالات) — لا أبعد.
+  const registry = new CapabilityRegistry();
+  registry.register({ id: "aisa", kind: "connector", provider: "aisa.one", risk: "read", costModel: "free", fixedCostUsd: 0, dataClearance: "INTERNAL", readOnly: true, version: "mcp-2026-07-28", trust: "declared" });
+  if (facts.mcp_auth_verified === true) {
+    const authReceipt = receipts.find((r) => r.operation === "list_categories" && r.outcome === "EXECUTED");
+    registry.raise("aisa", "AVAILABLE", authReceipt ? authReceipt.actionId : "evidence:auth", now);
+  }
   const status = registry.get("aisa");
 
-  const policyCrossCheck = crossCheckProposals(report, registry, now, capUsd);
-  policyCrossCheck.forEach((c, i) => {
-    const id = `action:proposal-${i + 1}`;
-    graph.action(taskId, id, now, { section: "NEXA_POLICY", operation: c.operation, reason: `adapter=${c.adapter} nexa=${c.nexa}`, risk: "n/a", executed: false });
-    graph.evidence(id, `evidence:proposal-${i + 1}`, now, { findings: c.findings, authorized: c.authorized, proposalHash: proposalHash({ capability: `aisa:${c.operation}`, operation: c.operation, arguments: {}, maxCostUsd: 0 }).slice(0, 12) });
-  });
+  // GEN1_GATE (الجزء الزمني): real_execution_pre_gate_verified ∧ paid_use=0 ∧ secret_exposure=0 (tests_pass = CI)
+  const parts: Record<string, string> = {
+    pre_execution_gate: String(facts.pre_execution_gate_verified),
+    paid_use: String(facts.paid_use),
+    secret_exposure: String(facts.secret_exposure),
+    runtime_evidence_tampered: String(facts.runtime_evidence_tampered),
+    tests_pass: "ci",
+  };
+  const gen1Runtime: BridgeResult["gen1"]["runtime"] =
+    facts.pre_execution_gate_verified === true && facts.paid_use === false && facts.secret_exposure === false && facts.runtime_evidence_tampered === false
+      ? "PASS"
+      : [facts.pre_execution_gate_verified, facts.paid_use, facts.secret_exposure, facts.runtime_evidence_tampered].includes("unknown")
+        ? "NOT_VERIFIED"
+        : "FAIL";
 
-  graph.verification(taskId, "verification:contract", now, { contract, facts, verdict });
+  graph.verification(TASK_ID, "verification:contract", now, { contract, facts, verdict, gen1: { runtime: gen1Runtime, parts } });
 
+  const gated = receipts.filter((r) => r.operation.startsWith("use:") && r.operation !== "use:account");
   const summary = [
     `NEXA_OUTCOME=${verdict.status} met=${verdict.met.join(",") || "-"} unmet=${verdict.unmet.join(",") || "-"} unknown=${verdict.unknown.join(",") || "-"} violated=${verdict.violated.join(",") || "-"} blocked=${verdict.blocked.join(",") || "-"}`,
-    `NEXA_CAPABILITY aisa=${status.state} (ladder CAN/AVAILABLE/AUTHORIZED/EXECUTABLE/EXECUTED/VERIFIED; GEN-0 never exceeds AVAILABLE) evidence=${status.evidence.map((e) => e.ref).join(",") || "-"}`,
-    `NEXA_POLICY proposals=${policyCrossCheck.length} ${policyCrossCheck.map((c) => `${c.operation}:adapter=${c.adapter}/nexa=${c.nexa}/authorized=${c.authorized ? "yes" : "no"}`).join(" ") || "-"}`,
-    `NEXA_EVIDENCE nodes=${graph.stats().nodes} edges=${graph.stats().edges} chain=${graph.verifyChain().ok ? "ok" : "BROKEN"} head=${graph.stats().head.slice(0, 12)}`,
+    `NEXA_GEN1_GATE runtime=${gen1Runtime} ${Object.entries(parts).map(([k, v]) => `${k}=${v}`).join(" ")}`,
+    `NEXA_GATEWAY ${details.gateway ?? "absent (GEN-0 report shape)"} denied=${details.gateway_denied ?? "n/a"}`,
+    `NEXA_CAPABILITY aisa=${status.state} (ladder CAN/AVAILABLE/AUTHORIZED/EXECUTABLE/EXECUTED/VERIFIED; bridge never exceeds AVAILABLE) evidence=${status.evidence.map((e) => e.ref).join(",") || "-"}`,
+    `NEXA_PROPOSALS ${gated.map((r) => `${r.operation.slice(4)}:${r.outcome}@${r.deniedAt ?? r.stage}(${r.policy ?? "-"})`).join(" ") || "-"} (candidates submitted to the gateway; denied before the provider)`,
+    `NEXA_EVIDENCE runtime_chain=${chain.present ? (chain.ok ? `ok(${chain.entries})` : "BROKEN") : "absent"} nodes=${graph.stats().nodes} edges=${graph.stats().edges} chain=${graph.verifyChain().ok ? "ok" : "BROKEN"} head=${graph.stats().head.slice(0, 12)}`,
     `NEXA_FACTS ${Object.entries(facts).map(([k, v]) => `${k}=${String(v)}`).join(" ")}`,
-    `NEXA_MODE post-hoc verification (GEN-0): adapter executed read-only calls itself; NEXA judged the evidence. Pre-execution gating through the boundary = GEN-1`,
+    `NEXA_MODE ${asRecord(report.facts.gateway) ? "pre-execution gating (GEN-1): every provider call passed nexa/gateway before the network; the bridge verified receipts, counters and the hash chain offline" : "post-hoc verification only (GEN-0 report shape: no gateway facts)"}`,
   ];
-  return { facts, details, verdict, capability: { id: "aisa", state: status.state, evidence: status.evidence.map((e) => e.ref) }, policyCrossCheck, graph, summary };
+  return { facts, details, verdict, gen1: { runtime: gen1Runtime, parts }, capability: { id: "aisa", state: status.state, evidence: status.evidence.map((e) => e.ref) }, receipts, graph, runtimeChain: chain, summary };
 }
 
 export function loadContract(file: string): OutcomeContract {
@@ -273,6 +286,18 @@ function parseArgs(argv: string[]): { in: string; contract: string; graph: strin
   return o;
 }
 
+export function explainLines(result: BridgeResult): string[] {
+  const ex = result.graph.explain(TASK_ID);
+  return [
+    `what: ${ex.what.map((n) => `${n.id}${typeof n.data.operation === "string" ? `[${n.data.operation}:${String(n.data.outcome)}]` : ""}`).join(", ") || "-"}`,
+    `why: ${ex.why.join(" | ") || "-"}`,
+    `proof: ${ex.proof.map((n) => n.id).join(", ") || "-"}`,
+    `authorized by: ${ex.authorizedBy.map((n) => `${n.id}(${String(n.data.basis)})`).join(", ") || "-"}`,
+    `changed: ${ex.changed.map((n) => n.id).join(", ") || "nothing (read-only)"}`,
+    `verification: ${ex.verification.map((n) => `${n.id}=${n.data.verdict ? String((n.data.verdict as OutcomeVerdict).status) : String(n.data.verified)}`).join(", ") || "-"}`,
+  ];
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const report = parseAdapterReport(JSON.parse(readFileSync(args.in, "utf8")));
@@ -286,18 +311,6 @@ async function main(): Promise<void> {
   if (args.graph) writeFileSync(args.graph, result.graph.toJSONL());
   if (args.out) writeFileSync(args.out, [...result.summary, formatVerdict(result.verdict), "", "explain:", ...explainLines(result)].join("\n") + "\n");
   process.exit(result.verdict.status === "COMPLETED" ? 0 : 1);
-}
-
-export function explainLines(result: BridgeResult): string[] {
-  const ex = result.graph.explain("task:aisa-readonly-discovery");
-  return [
-    `what: ${ex.what.map((n) => n.id).join(", ") || "-"}`,
-    `why: ${ex.why.join(" | ") || "-"}`,
-    `proof: ${ex.proof.map((n) => n.id).join(", ") || "-"}`,
-    `authorized by: ${ex.authorizedBy.map((n) => `${n.id}(${String(n.data.basis)})`).join(", ") || "-"}`,
-    `changed: ${ex.changed.map((n) => n.id).join(", ") || "nothing (read-only)"}`,
-    `verification: ${ex.verification.map((n) => `${n.id}=${String((n.data.verdict as OutcomeVerdict | undefined)?.status)}`).join(", ") || "-"}`,
-  ];
 }
 
 const invokedDirectly = (() => {

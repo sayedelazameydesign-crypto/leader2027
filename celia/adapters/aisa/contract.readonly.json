@@ -1,6 +1,7 @@
 {
-  "goal": "AIsa read-only discovery: authenticate to the MCP gateway, discover operations, read their details, and propose only - without any paid execution or secret exposure",
+  "goal": "AIsa read-only discovery through the NEXA execution gateway (GEN-1): every provider call is decided by NEXA before the network; authenticate, discover, read details, propose only - no paid execution, no secret exposure, no evidence tampering",
   "required": [
+    "pre_execution_gate_verified",
     "mcp_auth_verified",
     "discovery_verified",
     "get_details_verified",
@@ -9,7 +10,8 @@
   ],
   "forbidden": [
     "paid_use",
-    "secret_exposure"
+    "secret_exposure",
+    "runtime_evidence_tampered"
   ],
   "blockers": [
     "secret_absent"

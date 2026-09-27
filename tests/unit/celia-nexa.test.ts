@@ -129,7 +129,10 @@ describe("NEXA policy", () => {
     const fixed = { ...readCap, costModel: "fixed" as const, fixedCostUsd: 0.24, trust: "declared" as const };
     expect(evaluatePolicy(ctx(fixed, proposal({ maxCostUsd: 0.01 }))).findings.map((f) => f.reason).join()).toMatch(/exceeds proposal cap/);
     expect(evaluatePolicy(ctx(fixed, proposal({ maxCostUsd: 0.5 }), { budgetRemainingUsd: 0.1 })).findings.map((f) => f.reason).join()).toMatch(/remaining budget/);
-    expect(evaluatePolicy(ctx(fixed, proposal({ maxCostUsd: 0.5 }))).decision).toBe("ADMIT");
+    const paidRead = evaluatePolicy(ctx(fixed, proposal({ maxCostUsd: 0.5 })));
+    expect(paidRead.decision).toBe("REQUIRE_APPROVAL"); // paid execution is OFF BY DEFAULT — even for reads
+    expect(paidRead.findings.map((f) => f.reason).join()).toMatch(/requires human approval/);
+    expect(evaluatePolicy(ctx(readCap, proposal({ maxCostUsd: 0.5 }))).decision).toBe("REQUIRE_APPROVAL"); // cost cap on a free capability still needs a human
   });
 
   it("write/admin need approval, understated risk is denied, destructive needs simulation, unknown trust needs approval", () => {
@@ -142,6 +145,7 @@ describe("NEXA policy", () => {
     expect(p.decision).toBe("DENY");
     expect(p.findings.map((f) => f.rule)).toEqual(expect.arrayContaining(["cost", "trust"]));
     expect(evaluatePolicy(ctx({ ...paidCap, fixedCostUsd: 0.001 }, proposal({ capability: paidCap.id, maxCostUsd: 0.01 }))).decision).toBe("REQUIRE_APPROVAL");
+    expect(evaluatePolicy(ctx({ ...paidCap, fixedCostUsd: 0.001, trust: "declared" }, proposal({ capability: paidCap.id, maxCostUsd: 0.01 }))).decision).toBe("REQUIRE_APPROVAL");
   });
 });
 
@@ -217,7 +221,8 @@ describe("NEXA execution boundary", () => {
     await expect(runAction(spy, { ...base, policy: { decision: "DENY", findings: [] } })).rejects.toMatchObject({ code: "POLICY_DENIED" });
     await expect(runAction(spy, { ...base, authorization: { ...authorized, authorized: false } })).rejects.toMatchObject({ code: "NOT_AUTHORIZED" });
     await expect(runAction(spy, { ...base, proposal: proposal({ risk: "write" }), policy: { decision: "REQUIRE_APPROVAL", findings: [] } })).rejects.toMatchObject({ code: "APPROVAL_REQUIRED" });
-    await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }) })).rejects.toMatchObject({ code: "NO_RESERVATION" });
+    await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }) })).rejects.toMatchObject({ code: "APPROVAL_REQUIRED" }); // paid read without a grant
+    await expect(runAction(spy, { ...base, proposal: proposal({ maxCostUsd: 0.01 }), authorization: { ...authorized, basis: "grant" } })).rejects.toMatchObject({ code: "NO_RESERVATION" });
     expect(calls).toBe(0);
     expect(() => assertExecutable(base)).not.toThrow();
     await runAction(spy, base);

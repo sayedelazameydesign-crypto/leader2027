@@ -52,18 +52,23 @@ export const dataClassRule: PolicyRule = {
   },
 };
 
-/** التكلفة: مجهولة/ديناميكية ⇒ رفض (لا حدّ أعلى موثّق = لا تنفيذ)؛ ثابتة ⇒ ≤ سقف الاقتراح و≤ الميزانية المتبقية. */
+/**
+ * التكلفة: مجهولة/ديناميكية ⇒ رفض (لا حدّ أعلى موثّق = لا تنفيذ)؛ ثابتة ⇒ ≤ سقف الاقتراح و≤ الميزانية المتبقية.
+ * وكل فعل **مدفوع** — حتى القرائي — يتطلب موافقة بشرية (paid execution = OFF BY DEFAULT).
+ */
 export const costRule: PolicyRule = {
   id: "cost",
   evaluate(ctx) {
     const { capability, proposal } = ctx;
-    if (capability.costModel === "free") return [];
+    if (capability.costModel === "free" && proposal.maxCostUsd === 0) return [];
+    if (capability.costModel === "free") return [finding(this.id, "require_approval", `proposal carries a cost cap ${proposal.maxCostUsd} USD on a free capability: human approval required`)];
     if (capability.costModel !== "fixed" || capability.fixedCostUsd === null) {
       return [finding(this.id, "deny", `cost model ${capability.costModel}: no documented upper bound`)];
     }
     const out: PolicyFinding[] = [];
     if (capability.fixedCostUsd > proposal.maxCostUsd) out.push(finding(this.id, "deny", `fixed cost ${capability.fixedCostUsd} USD exceeds proposal cap ${proposal.maxCostUsd} USD`));
     if (capability.fixedCostUsd > ctx.budgetRemainingUsd) out.push(finding(this.id, "deny", `fixed cost ${capability.fixedCostUsd} USD exceeds remaining budget ${ctx.budgetRemainingUsd} USD`));
+    out.push(finding(this.id, "require_approval", `paid action (fixed ${capability.fixedCostUsd} USD) requires human approval`));
     return out;
   },
 };
