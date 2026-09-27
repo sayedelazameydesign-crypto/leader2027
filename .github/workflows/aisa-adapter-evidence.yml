@@ -1,4 +1,4 @@
-# AIsa — دليل runtime للمحوّل قراءة‑فقط (integrations/aisa/adapter.ts).
+# AIsa — دليل runtime للمحوّل قراءة‑فقط (celia/adapters/aisa/adapter.ts) + حكم NEXA (celia/adapters/aisa/bridge.ts).
 #
 # خط الأنابيب: connect → authenticate → list/search → get_details → validate schema → enforce max_price_usd → evidence.
 # لا `use` مدفوع إطلاقًا؛ الاستثناء المُسمّى الوحيد `use(account)` (مجاني، قراءة‑فقط) للقطة محاسبية قبل/بعد.
@@ -28,7 +28,7 @@ on:
     branches: [arena/01a0e068-leader2027]
     paths:
       - ".github/workflows/aisa-adapter-evidence.yml"
-      - "integrations/aisa/**"
+      - "celia/**"
 
 permissions:
   contents: read
@@ -58,9 +58,20 @@ jobs:
           CATEGORY: ${{ inputs.category || 'search' }}
           MAX_PRICE_USD: ${{ inputs.max_price_usd || '0.01' }}
         run: |
-          node integrations/aisa/adapter.ts \
+          node celia/adapters/aisa/adapter.ts \
             --query "$QUERY" ${CATEGORY:+--category "$CATEGORY"} --limit 3 --max-price-usd "$MAX_PRICE_USD" --autofill --account-snapshot \
             --out /tmp/aisa-adapter-evidence.txt --json /tmp/aisa-adapter-evidence.json
+
+      # NEXA (Celia GEN-0): يحكم على دليل المحوّل بعقد النتيجة — لا شبكة، لا سرّ. الخروج 0 فقط عند COMPLETED.
+      - name: "NEXA outcome contract + evidence graph"
+        if: always()
+        run: |
+          if [ ! -f /tmp/aisa-adapter-evidence.json ]; then
+            echo "::notice title=NEXA_OUTCOME::NEXA_OUTCOME=NOT_VERIFIED (adapter produced no JSON evidence)"; exit 1
+          fi
+          node celia/adapters/aisa/bridge.ts \
+            --in /tmp/aisa-adapter-evidence.json --contract celia/adapters/aisa/contract.readonly.json \
+            --graph /tmp/aisa-evidence-graph.jsonl --out /tmp/aisa-nexa.txt
 
       - name: "Job summary (redacted evidence)"
         if: always()
@@ -70,6 +81,16 @@ jobs:
             echo '```text'
             cat /tmp/aisa-adapter-evidence.txt 2>/dev/null || echo "(no evidence file)"
             echo '```'
+            echo "### NEXA verdict (Celia GEN-0)"
+            echo '```text'
+            cat /tmp/aisa-nexa.txt 2>/dev/null || echo "(no NEXA output)"
+            echo '```'
+            echo '<details><summary>evidence graph (JSONL, hash-chained)</summary>'
+            echo
+            echo '```text'
+            cat /tmp/aisa-evidence-graph.jsonl 2>/dev/null || echo "(no graph)"
+            echo '```'
+            echo '</details>'
             echo '<details><summary>facts (JSON, redacted)</summary>'
             echo
             echo '```json'

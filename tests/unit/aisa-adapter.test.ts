@@ -16,7 +16,7 @@ import {
   validateArgs,
   type OperationDetails,
   type Proposal,
-} from "@/integrations/aisa/adapter";
+} from "@/celia/adapters/aisa/adapter";
 
 const FAKE_KEY = "sk-aisa-TEST-0123456789abcdef0123456789abcdef";
 

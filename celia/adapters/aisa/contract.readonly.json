@@ -1,0 +1,17 @@
+{
+  "goal": "AIsa read-only discovery: authenticate to the MCP gateway, discover operations, read their details, and propose only - without any paid execution or secret exposure",
+  "required": [
+    "mcp_auth_verified",
+    "discovery_verified",
+    "get_details_verified",
+    "use_restricted_to_account",
+    "zero_charge_delta"
+  ],
+  "forbidden": [
+    "paid_use",
+    "secret_exposure"
+  ],
+  "blockers": [
+    "secret_absent"
+  ]
+}
