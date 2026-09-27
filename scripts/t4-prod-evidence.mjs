@@ -161,7 +161,15 @@ async function live() {
   for (const p of ["/api/health", "/api/debug/headers"]) {
     try {
       const res = await fetch(`${base}${p}`, { cache: "no-store", redirect: "manual" });
-      say("LIVE", `${p} -> ${res.status}${p.endsWith("headers") && res.status === 404 ? " (L27_DEBUG_HEADERS off, as after finalize)" : ""}`);
+      let note = "";
+      if (p.endsWith("headers") && res.status === 404) note = " (L27_DEBUG_HEADERS off, as after finalize)";
+      if (res.status >= 300 && res.status < 400) {
+        // التطبيق لا يعيد توجيه أي GET — 3xx هنا يأتي من أمام التطبيق (مثل Vercel Deployment Protection/SSO).
+        let host = "n/a";
+        try { host = new URL(res.headers.get("location") ?? "", base).host; } catch { /* keep n/a */ }
+        note = ` location_host=${host} (app never redirects GET; 3xx = in front of the app, e.g. Vercel Deployment Protection)`;
+      }
+      say("LIVE", `${p} -> ${res.status}${note}`);
     } catch (err) {
       say("LIVE", `${p} -> fetch-error ${err instanceof Error ? err.name : "Error"}`);
     }
