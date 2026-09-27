@@ -1,0 +1,55 @@
+# AIsa — اختبار توصيل AISA_API_KEY (قراءة فقط · نداءات مجانية فقط · لا يُطبع المفتاح).
+#
+# لماذا Actions؟ بيئة التطوير محجوبة عن api.aisa.one وmcp.aisa.one، والمفتاح لا يمرّ عبر أي
+# محادثة — يُضاف مرة واحدة في GitHub > Settings > Secrets > Actions باسم AISA_API_KEY
+# (وثائق AIsa: مفتاح مخصّص للـCI بسقف إنفاق منخفض).
+#
+# التشغيل: Re-run من واجهة Actions بعد إضافة السرّ (السرّ يُقرأ وقت التشغيل)، أو دفع تعديل على
+# أحد الملفين أدناه. القراءة (سجلات الـrunner محجوبة في بيئة التطوير):
+#   gh api repos/<owner>/<repo>/check-runs/<job_id>/annotations
+name: "AIsa key check (read-only)"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/01a0e068-leader2027]
+    paths:
+      - ".github/workflows/aisa-key-check.yml"
+      - "scripts/aisa-key-check.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: "Secret presence (name only)"
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+        run: |
+          if [ -n "$AISA_API_KEY" ]; then echo "::notice title=secrets::AISA_API_KEY = present"; else echo "::notice title=secrets::AISA_API_KEY = absent"; fi
+
+      - name: "KEY / REACH / REST / MCP (free calls only)"
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+          L27_EVIDENCE_OUT: /tmp/aisa-key-check.txt
+        run: node scripts/aisa-key-check.mjs
+
+      - name: "Job summary (redacted)"
+        if: always()
+        run: |
+          {
+            echo "## AIsa key check (read-only) — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo '```text'
+            cat /tmp/aisa-key-check.txt 2>/dev/null || echo "(no output file)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
