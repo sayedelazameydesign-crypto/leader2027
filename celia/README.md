@@ -40,6 +40,7 @@ celia/
 │   ├── evidence.ts            # Evidence Graph (§14) إلحاقي بسلسلة تجزئة + Replay (§15) + explain()
 │   ├── verification.ts        # Outcome Contract (§6): COMPLETED/PARTIAL/BLOCKED/NOT_VERIFIED/FAILED
 │   └── index.ts
+├── docs/                      # مواصفات الأجيال + مطابقة التنفيذ (GEN-3-task-engine.md)
 ├── core/                      # EXISTS (GEN-2 + GEN-3)
 │   ├── task/                  # نموذج المهمة: آلة الحالة (+WAITING_APPROVAL/PARTIAL) · الخطوة · نقاط التفتيش المسلسلة · النتيجة · المهمة
 │   │                          # GEN-3: store (واجهة + ذاكرة) · sqlite-store (node:sqlite) · approval (منح بشرية معلّقة) · artifact (مخرجات مجزّأة)
