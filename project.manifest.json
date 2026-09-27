@@ -20,8 +20,8 @@
   },
   "status": {
     "phase": "VS4",
-    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 49/49**.",
-    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**."
+    "ar": "VS1+VS2 = **MERGED في main (PR #1)** · VS3 (نواة الحملة الإدارية) = **منفَّذ — بوابات خضراء** · VS4 (النواة الحيّة + الأنوية الذرية) = **منفَّذ — بوابات خضراء** · VS5/T1 (محوّل PostgreSQL) + T2 (سر الجلسة) + V5.1 (بوابة الوكلاء MCP) = **منفَّذ — 197/197 منها 6 حيّة ضد Postgres · smoke 50/50**.",
+    "en": "VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 50/50**."
   },
   "principles": {
     "ar": [
@@ -105,7 +105,7 @@
     {
       "id": "smoke",
       "script": "npm run smoke",
-      "expected": "49/49"
+      "expected": "50/50"
     },
     {
       "id": "ci",
@@ -210,7 +210,6 @@
         "ar": "المالك",
         "en": "Owner"
       },
-      "account": "owner@leader2027.test",
       "level": "manager"
     },
     {
@@ -219,7 +218,6 @@
         "ar": "مدير النظام",
         "en": "Campaign Admin"
       },
-      "account": "admin@leader2027.test",
       "level": "manager"
     },
     {
@@ -228,7 +226,6 @@
         "ar": "مدير الحملة",
         "en": "Campaign Manager"
       },
-      "account": "manager@leader2027.test",
       "level": "manager"
     },
     {
@@ -237,7 +234,6 @@
         "ar": "منسق ميداني",
         "en": "Field Coordinator"
       },
-      "account": "coordinator@leader2027.test",
       "level": "field"
     },
     {
@@ -246,7 +242,6 @@
         "ar": "عامل ميداني",
         "en": "Field Worker"
       },
-      "account": "worker@leader2027.test",
       "level": "field"
     },
     {
@@ -255,7 +250,6 @@
         "ar": "مُطلع",
         "en": "Viewer"
       },
-      "account": "viewer@leader2027.test",
       "level": "readonly"
     }
   ],
@@ -644,8 +638,8 @@
     ]
   },
   "accountsNote": {
-    "ar": "**لا كلمة مرور ثابتة في المستودع** (السابقة نُشرت علنًا واحتُرقت — شُلت بالكامل). كلمة مرور العرض لكل بيئة عبر `L27_DEMO_PASSWORD` (smoke/CI/معاينة تصرّحه)، وغيابها ⇒ عشوائية لكل عملية بذر. ⚠️ هذه الحسابات لا تُزرَع في الإنتاج إطلاقًا إلا بتصريح صريح `L27_SEED_DEMO_ACCOUNTS=1` — الإنتاج يبدأ بمالك `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` أو فارغًا (`.env.example`).",
-    "en": "**No fixed password in the repo** (the previous one was published and burned — fully removed). Demo password is per-environment via `L27_DEMO_PASSWORD` (declared by smoke/CI/preview); absent ⇒ random per seed run. These accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`)."
+    "ar": "حسابات العرض fixtures للتطوير والاختبار فقط. في الإنتاج، `L27_SEED_DEMO_ACCOUNTS` افتراضيًا معطّل؛ التمكين الصريح ينطبق عند بذر مخزن فارغ فقط. ضبطه على 0 لا يحذف حسابات سبق حفظها في مخزن مستمر؛ يجب فحصها وإزالتها بعملية مستقلة ومراجَعة. لا ننشر معرّفات دخول أو تلميحات اعتماد في الوثائق.",
+    "en": "Demo accounts are development/test fixtures only. In production, `L27_SEED_DEMO_ACCOUNTS` is disabled by default; explicit opt-in applies only when seeding an empty store. Setting it to 0 does not remove accounts already persisted in a durable store; inspect and remove those through a separate reviewed operation. Public docs do not publish sign-in identifiers or credential hints."
   },
   "sessionRules": {
     "ar": [
@@ -829,8 +823,10 @@
       "name": "L27_SEED_DEMO_ACCOUNTS",
       "default": "— (التطوير/الاختبار: 1 · الإنتاج: 0)",
       "values": "0 | 1",
-      "note": "يصرّح بذر حسابات العرض — ومعها L27_DEMO_PASSWORD لكل بيئة (لا قيمة ثابتة في المستودع).",
-      "noteEn": "Enables demo-account seeding — with per-environment L27_DEMO_PASSWORD (no fixed value in the repo)."
+      "note": {
+        "ar": "يسمح صراحةً ببذر حسابات fixtures عند إنشاء مخزن فارغ. في الإنتاج اتركه 0/غير مضبوط. تغييره لا يزيل حسابات موجودة مسبقًا في مخزن مستمر.",
+        "en": "Explicitly enables fixture-account seeding for a new empty store. Keep unset or 0 in production. Changing this flag does not remove accounts already stored in a persistent store."
+      }
     },
     {
       "name": "L27_BOOTSTRAP_OWNER_EMAIL",
@@ -884,12 +880,14 @@
     },
     {
       "name": "L27_DEMO_PASSWORD",
-      "description": "كلمة مرور حسابات العرض لكل بيئة — تُصرَّح في smoke/CI/المعاينة؛ لا قيمة افتراضية (غيابها ⇒ عشوائية غير معلنة).",
-      "descriptionEn": "Per-environment demo-account password — declared in smoke/CI/preview; no default (absent ⇒ random, never logged).",
+      "description": "سرّ fixture محصور في بيئات التطوير/الاختبار المعزولة عند تفعيل حسابات العرض؛ لا تضبطه في Production.",
+      "descriptionEn": "Fixture secret for isolated development/test environments when demo seeding is enabled; do not set in production.",
       "default": "",
       "required": false,
-      "note": "القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا.",
-      "noteEn": "The previous value is burned and removed — never reuse a published password."
+      "note": {
+        "ar": "لا توجد قيمة افتراضية؛ الغياب يولّد قيمة عشوائية لا تُسجّل. هذا المتغير لا يغيّر حسابات سبق تخزينها.",
+        "en": "No default; absence generates a random value that is never logged. This variable does not change accounts already persisted."
+      }
     },
     {
       "name": "L27_DEBUG_HEADERS",

@@ -24,8 +24,7 @@ export default async function LoginPage() {
         <h1>تسجيل الدخول</h1>
         <LoginForm />
         <p className="muted small">
-          حسابات تشغيلية تجريبية: manager@leader2027.test — coordinator@ — worker@ —
-          viewer@ (كلمة المرور: Demo!2345)
+          إذا لم يكن لديك حساب، تواصل مع مسؤول النظام.
         </p>
       </section>
     </main>

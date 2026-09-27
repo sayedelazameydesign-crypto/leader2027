@@ -20,8 +20,9 @@ describe("عزل حسابات العرض عن بذر الإنتاج (VS5/T3)", (
     setEnv("L27_BOOTSTRAP_OWNER_PASSWORD", undefined);
   });
 
-  it("التطوير/الاختبار: الحسابات مسموحة افتراضيًا — والاختبارات تعمل كما هي", () => {
+  it("التطوير/الاختبار: يمكن تفعيل fixtures صراحةً عبر البيئة", () => {
     setEnv("NODE_ENV", "test");
+    setEnv("L27_SEED_DEMO_ACCOUNTS", "1");
     setEnv("L27_DEMO_PASSWORD", "fixture-seed-iso-only-2Pw");
     expect(demoAccountsAllowed()).toBe(true);
     expect(seededStore().users).toHaveLength(6);
@@ -30,6 +31,13 @@ describe("عزل حسابات العرض عن بذر الإنتاج (VS5/T3)", (
 
   it("الإنتاج بلا صريح: لا حسابات عرض إطلاقًا — ولا أي كلمة مرور ثابتة", () => {
     setEnv("NODE_ENV", "production");
+    expect(demoAccountsAllowed()).toBe(false);
+    expect(seededStore().users).toHaveLength(0);
+  });
+
+  it("L27_SEED_DEMO_ACCOUNTS=0 يعطّل fixtures صراحةً في كل البيئات", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("L27_SEED_DEMO_ACCOUNTS", "0");
     expect(demoAccountsAllowed()).toBe(false);
     expect(seededStore().users).toHaveLength(0);
   });

@@ -148,14 +148,14 @@ function build(manifest, pkg, lang) {
     }
   }
 
-  /* ---------------- accounts ---------------- */
+  /* ---------------- development/test fixture roles ---------------- */
   if (manifest.roles?.length) {
     out.push(
-      isAr ? "## حسابات تشغيلية تجريبية (seed-only)" : "## Demo Operations Accounts (seed-only)",
+      isAr ? "## أدوار fixtures التطوير والاختبار" : "## Development/Test Fixture Roles",
       "",
       table(
-        [isAr ? "البريد" : "Email", isAr ? "الدور" : "Role", isAr ? "المستوى" : "Level"],
-        manifest.roles.map((r) => [`\`${r.account}\``, `${r.label ? t(r.label, L) + " — " : ""}\`${r.id}\``, manifest.levels?.[r.level] ? t(manifest.levels[r.level], L) : r.level ?? "—"])
+        [isAr ? "الدور" : "Role", isAr ? "المستوى" : "Level"],
+        manifest.roles.map((r) => [`${r.label ? t(r.label, L) + " — " : ""}\`${r.id}\``, manifest.levels?.[r.level] ? t(manifest.levels[r.level], L) : r.level ?? "—"])
       ),
       "",
       t(manifest.accountsNote, L),
