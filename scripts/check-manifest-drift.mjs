@@ -6,7 +6,7 @@
  * تبعية في الـbuild. هذا السكربت **لا يُفشل شيئًا** افتراضيًا (خروج 0 دائمًا)،
  * وهو منفصل تمامًا عن `generate-readme.mjs` الذي لا يقرأ الكود إطلاقًا.
  *
- * يتحقق من: النسخة، الأدوار، الإجراءات، مصفوفة الصلاحيات، بريد الحسابات المزروعة،
+ * يتحقق من: النسخة، الأدوار، الإجراءات، مصفوفة الصلاحيات، أدوار fixtures المزروعة،
  * مسارات API، وملفات الوثائق المُشار إليها.
  *
  * الاستعمال:
@@ -116,14 +116,17 @@ try {
     warn("lib/authorization/policy.ts غير موجود — تخطّي فحص الإجراءات");
   }
 
-  /* ---- حسابات seed ---- */
+  /* ---- أدوار fixtures seed (لا تُعرَض معرّفات الدخول في الـmanifest) ---- */
   const seedSrc = read("lib/persistence/seed.ts");
   if (seedSrc) {
-    const codeEmails = [...new Set([...seedSrc.matchAll(/"([a-z0-9._%+-]+@[a-z0-9.-]+)"/g)].map((m) => m[1]))];
-    const declaredEmails = (manifest.roles ?? []).map((r) => r.account);
-    compare("حسابات seed", declaredEmails, codeEmails);
+    const usersStart = seedSrc.indexOf("users: [");
+    const usersEnd = seedSrc.indexOf("\n  ],", usersStart);
+    const usersBlock = usersStart >= 0 && usersEnd >= 0 ? seedSrc.slice(usersStart, usersEnd) : "";
+    const codeSeedRoles = [...usersBlock.matchAll(/role:\s*"([A-Z_]+)"/g)].map((m) => m[1]);
+    const declaredSeedRoles = (manifest.roles ?? []).map((r) => r.id);
+    compare("أدوار fixtures seed", declaredSeedRoles, codeSeedRoles);
   } else {
-    warn("lib/persistence/seed.ts غير موجود — تخطّي فحص الحسابات");
+    warn("lib/persistence/seed.ts غير موجود — تخطّي فحص أدوار fixtures");
   }
 
   /* ---- متغيرات البيئة ---- */

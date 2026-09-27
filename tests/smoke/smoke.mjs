@@ -59,6 +59,13 @@ async function login(email) {
 async function main() {
   await waitForServer();
 
+  // Incident regression: the public sign-in page must not reveal demo identifiers or passwords.
+  {
+    const { res, text } = await req("/login");
+    const hasCredentialHint = /@leader2027\.test|demo[!@#$%^&*.-]\d{2,}/i.test(text);
+    check("SEC-01: login page exposes no demo credentials", res.status === 200 && !hasCredentialHint, `status=${res.status}`);
+  }
+
   // حدود المصادقة (AC9): بلا جلسة
   {
     const { res } = await req("/");

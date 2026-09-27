@@ -9,7 +9,7 @@
 
 ## Status
 
-**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 49/49**.
+**VS4** — VS1+VS2 = **MERGED into main (PR #1)** · VS3 (administrative campaign core) = **implemented — gates green** · VS4 (live kernel + atomic nuclei) = **implemented — gates green** · VS5/T1 (PostgreSQL adapter) + T2 (session secret) + V5.1 (MCP Agent Gateway) = **implemented — 197/197 incl. 6 live Postgres · smoke 50/50**.
 
 | Slice | Description | State | Evidence |
 | --- | --- | --- | --- |
@@ -45,18 +45,18 @@ npm ci
 | `npm run readme:check` | Detect README drift from the manifest |
 | `npm run readme:drift` | Advisory check: manifest vs code (warnings only) |
 
-## Demo Operations Accounts (seed-only)
+## Development/Test Fixture Roles
 
-| Email | Role | Level |
-| --- | --- | --- |
-| `owner@leader2027.test` | Owner — `OWNER` | Management |
-| `admin@leader2027.test` | Campaign Admin — `CAMPAIGN_ADMIN` | Management |
-| `manager@leader2027.test` | Campaign Manager — `CAMPAIGN_MANAGER` | Management |
-| `coordinator@leader2027.test` | Field Coordinator — `FIELD_COORDINATOR` | Field |
-| `worker@leader2027.test` | Field Worker — `FIELD_WORKER` | Field |
-| `viewer@leader2027.test` | Viewer — `VIEWER` | Read-only |
+| Role | Level |
+| --- | --- |
+| Owner — `OWNER` | Management |
+| Campaign Admin — `CAMPAIGN_ADMIN` | Management |
+| Campaign Manager — `CAMPAIGN_MANAGER` | Management |
+| Field Coordinator — `FIELD_COORDINATOR` | Field |
+| Field Worker — `FIELD_WORKER` | Field |
+| Viewer — `VIEWER` | Read-only |
 
-**No fixed password in the repo** (the previous one was published and burned — fully removed). Demo password is per-environment via `L27_DEMO_PASSWORD` (declared by smoke/CI/preview); absent ⇒ random per seed run. These accounts are never seeded in production unless explicitly enabled with `L27_SEED_DEMO_ACCOUNTS=1` — production starts with a `L27_BOOTSTRAP_OWNER_EMAIL/PASSWORD` owner or empty (`.env.example`).
+Demo accounts are development/test fixtures only. In production, `L27_SEED_DEMO_ACCOUNTS` is disabled by default; explicit opt-in applies only when seeding an empty store. Setting it to 0 does not remove accounts already persisted in a durable store; inspect and remove those through a separate reviewed operation. Public docs do not publish sign-in identifiers or credential hints.
 
 ## Permission Matrix
 
@@ -158,14 +158,14 @@ tests/        unit / integration / smoke
 | `L27_ALLOW_INSECURE_SECRET` | 1 | `—` | Explicit escape hatch for production tests only — production rejects the default secret (VS5/T2) |
 | `NODE_ENV` | development \| test \| production | `—` | Platform variable — production rejects the default session secret (VS5/T2) |
 | `NEXT_PHASE` | phase-production-build | `—` | Set by Next.js — exempt during the build phase (no session signing in build) |
-| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | يصرّح بذر حسابات العرض — ومعها L27_DEMO_PASSWORD لكل بيئة (لا قيمة ثابتة في المستودع). |
+| `L27_SEED_DEMO_ACCOUNTS` | 0 \| 1 | `— (التطوير/الاختبار: 1 · الإنتاج: 0)` | Explicitly enables fixture-account seeding for a new empty store. Keep unset or 0 in production. Changing this flag does not remove accounts already stored in a persistent store. |
 | `L27_BOOTSTRAP_OWNER_EMAIL` | email | `—` | Bootstrap owner email for production — created once at first seed |
 | `L27_BOOTSTRAP_OWNER_PASSWORD` | secret (≥8) | `—` | Bootstrap owner password — omit it and the seed stays empty (no accounts) |
 | `L27_ALLOWED_HOSTS` | example.com,app.example.com | `—` | Strict host allowlist for the CSRF check — when set, proxy headers are never trusted (direct exposure) |
 | `L27_RATE_BACKEND` | memory | `— (تلقائي: postgres مع L27_STORE=postgres · وإلا الذاكرة)` | Explicit opt-in for the in-memory limiter backend — warned against in production (cold starts reset counters) |
 | `L27_CLIENT_IP_HEADER` | x-real-ip \| cf-connecting-ip \| … | `x-real-ip` | ترويسة هوية العميل للمُخدد — تُقرأ خلف L27_TRUST_EDGE=1 فقط؛ x-forwarded-for لا تُقرأ أبدًا. الافتراضي x-real-ip صحيح على Vercel (يُتحقق تجريبيًا أول خطوة في النشر). |
 | `L27_TRUST_EDGE` | 1 | `—` | edge موثوق ينظّف الترويسات (Vercel / nginx REPLACE) — يمنح ثقة ترويسة الـIP ويعفي فحص الأصل. مستقل عن L27_ALLOWED_HOSTS (لا يمنح ثقة IP أبدًا). لا يُفعَّل على خادم مكشوف مباشرة. مطلوب في الإنتاج مع L27_ALLOWED_HOSTS (أحد الاثنين). |
-| `L27_DEMO_PASSWORD` | — | `` | القيمة السابقة محروقة وشُلت — لا تُعِد استخدام كلمة مرور نُشرت علنًا. |
+| `L27_DEMO_PASSWORD` | — | `` | No default; absence generates a random value that is never logged. This variable does not change accounts already persisted. |
 | `L27_DEBUG_HEADERS` | — | `` | لا يُفعَّل في الإنتاج بعد T4 — بصمة بنية (يكشف Vercel). |
 
 ## Quality Gates
@@ -175,7 +175,7 @@ tests/        unit / integration / smoke
 | `typecheck` | `npm run typecheck` | **clean** |
 | `tests` | `npm test` | **237/237** |
 | `build` | `npm run build` | **PASS** |
-| `smoke` | `npm run smoke` | **49/49** |
+| `smoke` | `npm run smoke` | **50/50** |
 | `ci` | `GitHub Actions` | **PASS** |
 
 CI runs all of these on every push/PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).

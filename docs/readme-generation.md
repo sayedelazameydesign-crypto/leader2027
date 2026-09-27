@@ -22,7 +22,7 @@ project.manifest.json
 تُنتج وثيقة خاطئة بصمت. لذلك:
 
 - **المولّد لا يقرأ الكود إطلاقًا** — يقرأ `project.manifest.json` و `package.json` فقط.
-- الحقائق المُعلَنة (الأدوار، الإجراءات، مصفوفة الصلاحيات، مسارات API، الحسابات) **تُكتب صراحةً في الـmanifest**.
+- الحقائق المُعلَنة (الأدوار، الإجراءات، مصفوفة الصلاحيات، مسارات API، وسياسة fixtures) **تُكتب صراحةً في الـmanifest**؛ لا تُنشر معرّفات دخول fixtures.
 - التحقق من مطابقة الـmanifest للكود **منفصل تمامًا** في سكربت استشاري (`readme:drift`) **لا يُفشل شيئًا**.
 
 ## التدفق (فشل التوليد لا يُفشل البناء)
@@ -105,7 +105,7 @@ git add project.manifest.json README.md README.en.md && git commit
 | النسخة | `package.json` |
 | الأدوار | `lib/authorization/roles.ts` |
 | الإجراءات + صفوف المصفوفة (إجراءً بإجراء) | `lib/authorization/policy.ts` |
-| بريد الحسابات المزروعة | `lib/persistence/seed.ts` |
+| أدوار fixtures المزروعة | `lib/persistence/seed.ts` |
 | المتغيرات البيئية المستخدمة | `container.ts` / `session.ts` / smoke |
 | مسارات API | شجرة `app/api/**/route.ts` |
 | ملفات الوثائق ومخرجات README | نظام الملفات |
